@@ -58,7 +58,7 @@ class Login extends Component
                 return redirect()->intended('/');
             } else {
                 $error = $response->json();
-                $this->error = $this->getErrorMessage($error);
+                $this->error = $this->getErrorMessage($error['error_description'] ?? 'Giriş hatası');
             }
         } catch (\Exception $e) {
             $this->error = 'Bağlantı hatası oluştu. Lütfen tekrar deneyin.';
@@ -75,7 +75,7 @@ class Login extends Component
         if (str_contains($errorMsg, 'Email not confirmed')) {
             return 'E-posta adresinizi doğrulamanız gerekiyor.';
         }
-        return $errorMsg;
+        return 'Giriş yapılırken bir hata oluştu.';
     }
 
     public function render()
