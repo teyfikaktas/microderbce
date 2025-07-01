@@ -75,7 +75,7 @@ class Login extends Component
         if (str_contains($errorMsg, 'Email not confirmed')) {
             return 'E-posta adresinizi doğrulamanız gerekiyor.';
         }
-        return 'Giriş yapılırken bir hata oluştu.';
+        return $errorMsg;
     }
 
     public function render()
