@@ -126,9 +126,9 @@
                                     <span>👥 {{ $job['application_count'] ?? 0 }} başvuru</span>
                                     <span>👁️ {{ $job['view_count'] ?? 0 }} görüntülenme</span>
                                 </div>
-                                <button class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-200">
-                                    Başvur
-                                </button>
+                                <a href="/jobs/{{ $job['id'] }}" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-200 inline-block text-center">
+    Detaylar
+</a>
                             </div>
                         </div>
                     @endforeach
