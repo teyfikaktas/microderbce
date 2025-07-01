@@ -94,10 +94,29 @@
 
                             <!-- Apply Button -->
                             <div class="text-center">
-                                <button wire:click="apply" 
-                                        class="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition duration-200 text-lg font-semibold">
-                                    🚀 Hemen Başvur
-                                </button>
+                                @if($hasUserApplied)
+                                    <!-- Zaten başvurmuş -->
+                                    <button disabled 
+                                            class="bg-green-500 text-white px-8 py-3 rounded-lg cursor-not-allowed text-lg font-semibold opacity-75">
+                                        ✅ Başvuru Tamamlandı
+                                    </button>
+                                    <div class="mt-2 text-sm text-green-600 font-medium">
+                                        Bu iş ilanına başvurunuz mevcut
+                                    </div>
+                                @elseif(!session('user_id'))
+                                    <!-- Giriş yapmamış -->
+                                    <button wire:click="apply" 
+                                            class="bg-gray-500 text-white px-8 py-3 rounded-lg hover:bg-gray-600 transition duration-200 text-lg font-semibold">
+                                        🔐 Giriş Yaparak Başvur
+                                    </button>
+                                @else
+                                    <!-- Normal başvur butonu -->
+                                    <button wire:click="apply" 
+                                            class="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition duration-200 text-lg font-semibold">
+                                        🚀 Hemen Başvur
+                                    </button>
+                                @endif
+                                
                                 <div class="mt-2 text-sm text-gray-500">
                                     {{ $job['application_count'] ?? 0 }} kişi başvurdu • 
                                     {{ $this->getTimeAgo() }}

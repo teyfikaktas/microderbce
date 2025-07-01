@@ -14,6 +14,7 @@ class JobDetail extends Component
     public $loading = true;
     public $error = null;
     public $showApplicationModal = false;
+    public $hasUserApplied = false; // Yeni eklendi
     
     // Sadece cover letter (basitleştirilmiş)
     public $applicationData = [
@@ -29,6 +30,7 @@ class JobDetail extends Component
         $this->jobId = $id;
         $this->loadJobDetail();
         $this->loadRelatedJobs();
+        $this->checkUserApplication(); // Yeni eklendi
     }
 
     public function loadJobDetail()
@@ -65,11 +67,44 @@ class JobDetail extends Component
         }
     }
 
+    public function checkUserApplication()
+    {
+        // Kullanıcı giriş yapmamışsa kontrol etme
+        if (!session('user_id')) {
+            $this->hasUserApplied = false;
+            return;
+        }
+
+        try {
+            // Job Application Service'den kullanıcının bu işe başvurup başvurmadığını kontrol et
+            $response = Http::timeout(5)->get(
+                $this->applicationApiUrl . '/applications/user/' . session('user_id')
+            );
+
+            if ($response->successful()) {
+                $applications = $response->json()['data'] ?? [];
+                
+                // Bu job_id'ye başvuru var mı kontrol et
+                $this->hasUserApplied = collect($applications)->contains(function ($application) {
+                    return $application['job_posting_id'] == $this->jobId;
+                });
+            }
+        } catch (\Exception $e) {
+            $this->hasUserApplied = false;
+        }
+    }
+
     public function apply()
     {
         // Session kontrolü - Supabase auth
         if (!session('user_id') || !session('access_token')) {
             return redirect()->route('login')->with('message', 'Başvuru yapmak için giriş yapmalısınız.');
+        }
+
+        // Zaten başvurmuşsa
+        if ($this->hasUserApplied) {
+            session()->flash('info', 'Bu iş ilanına zaten başvurmuşsunuz.');
+            return;
         }
 
         $this->showApplicationModal = true;
@@ -93,7 +128,7 @@ class JobDetail extends Component
 
         try {
             $applicationData = [
-                'job_posting_id' => (int)$this->jobId, // Integer'a cast et
+                'job_posting_id' => (int)$this->jobId,
                 'user_id' => session('user_id'),
                 'cover_letter' => $this->applicationData['cover_letter'],
                 'resume_path' => null
@@ -108,6 +143,7 @@ class JobDetail extends Component
             if ($response->successful()) {
                 $this->showApplicationModal = false;
                 $this->reset('applicationData');
+                $this->hasUserApplied = true; // Başvuru durumunu güncelle
                 
                 session()->flash('success', 'Başvurunuz başarıyla gönderildi! 🎉');
                 
@@ -119,6 +155,7 @@ class JobDetail extends Component
                 $error = $response->json();
                 
                 if ($response->status() === 409) {
+                    $this->hasUserApplied = true; // Zaten başvurmuş
                     session()->flash('error', 'Bu iş ilanına daha önce başvuru yapmışsınız.');
                 } elseif ($response->status() === 422) {
                     $errorMessages = collect($error['errors'] ?? [])->flatten()->implode(' ');
