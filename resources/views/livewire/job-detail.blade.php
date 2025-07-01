@@ -210,42 +210,29 @@
             </div>
         </div>
 
-        <!-- Application Modal -->
+        <!-- Basitleştirilmiş Application Modal - Sadece Cover Letter -->
         @if($showApplicationModal)
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
              wire:click="closeApplicationModal">
             <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4" wire:click.stop>
-                <h3 class="text-xl font-bold text-gray-800 mb-4">Başvuru Formu</h3>
+                <h3 class="text-xl font-bold text-gray-800 mb-4">🚀 Hızlı Başvuru</h3>
                 
                 <form wire:submit.prevent="submitApplication">
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Ad Soyad</label>
-                            <input type="text" wire:model="applicationData.name" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                            @error('applicationData.name') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">E-posta</label>
-                            <input type="email" wire:model="applicationData.email" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                            @error('applicationData.email') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Telefon</label>
-                            <input type="tel" wire:model="applicationData.phone" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                            @error('applicationData.phone') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Kapak Mektubu</label>
-                            <textarea wire:model="applicationData.cover_letter" rows="4"
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Kapak Mektubu *
+                            </label>
+                            <textarea wire:model="applicationData.cover_letter" rows="6"
                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                      placeholder="Neden bu pozisyon için uygun olduğunuzu açıklayın..."></textarea>
-                            @error('applicationData.cover_letter') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                      placeholder="Neden bu pozisyon için uygun olduğunuzu kısaca açıklayın... (En az 50 karakter)"></textarea>
+                            @error('applicationData.cover_letter') 
+                                <span class="text-red-500 text-sm">{{ $message }}</span> 
+                            @enderror
+                        </div>
+                        
+                        <div class="text-sm text-gray-500">
+                            💡 İpucu: Deneyimlerinizi ve bu pozisyon için neden uygun olduğunuzu belirtin.
                         </div>
                     </div>
                     
@@ -255,8 +242,9 @@
                             İptal
                         </button>
                         <button type="submit" 
-                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                            Başvuruyu Gönder
+                                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
+                            <span wire:loading.remove>Başvuruyu Gönder</span>
+                            <span wire:loading>Gönderiliyor...</span>
                         </button>
                     </div>
                 </form>
@@ -275,6 +263,12 @@
     @if (session()->has('error'))
         <div class="fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
             {{ session('error') }}
+        </div>
+    @endif
+
+    @if (session()->has('info'))
+        <div class="fixed top-4 right-4 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+            {{ session('info') }}
         </div>
     @endif
 
