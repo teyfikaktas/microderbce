@@ -7,17 +7,18 @@ use Exception;
 
 class MongoSearchService
 {
-    private $atlasUrl;
-    private $apiKey;
-    private $database = 'job_search_analytics';
-    private $collection = 'user_searches';
+    private $publicKey;
+    private $privateKey;
+    private $projectId;
+    private $clusterName;
+    private $database;
+    private $collection;
 
     public function __construct()
     {
-        // MongoDB Atlas Admin API kullanacağız
         $this->publicKey = env('MONGODB_PUBLIC_KEY', 'kkoclguu');
         $this->privateKey = env('MONGODB_PRIVATE_KEY', '3e2c95f6-19a6-4fcb-affb-dbca065b2139');
-        $this->projectId = env('MONGODB_PROJECT_ID', '6862f4cffd466e5ed0d0f5d9');
+        $this->projectId = env('MONGODB_PROJECT_ID', '6862f4cffd466e5ed0d0f5c8');
         $this->clusterName = 'Cluster0';
         $this->database = 'job_search_analytics';
         $this->collection = 'user_searches';
@@ -42,35 +43,35 @@ class MongoSearchService
                 'created_at' => now()->toISOString()
             ];
 
-            // Atlas Data API ile kaydet
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'api-key' => $this->apiKey
-            ])->post($this->atlasUrl . '/action/insertOne', [
-                'dataSource' => 'Cluster0',
-                'database' => $this->database,
-                'collection' => $this->collection,
-                'document' => $document
-            ]);
+            \Log::info('Sending to MongoDB Atlas: ' . json_encode($document));
+
+            // Atlas Admin API ile kaydet
+            $response = Http::withBasicAuth($this->publicKey, $this->privateKey)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post("https://cloud.mongodb.com/api/atlas/v1.0/groups/{$this->projectId}/clusters/{$this->clusterName}/restapi/insert", [
+                    'database' => $this->database,
+                    'collection' => $this->collection,
+                    'document' => $document
+                ]);
+
+            \Log::info('Atlas API Response Status: ' . $response->status());
+            \Log::info('Atlas API Response Body: ' . $response->body());
 
             if ($response->successful()) {
                 $result = $response->json();
-                \Log::info('MongoDB Atlas save successful: ' . json_encode($result));
-                
                 return [
                     'success' => true,
-                    'id' => $result['insertedId'] ?? 'unknown'
+                    'id' => $result['insertedId'] ?? time()
                 ];
             } else {
-                \Log::error('MongoDB Atlas save failed: ' . $response->body());
                 return [
                     'success' => false,
-                    'error' => 'Atlas API error: ' . $response->status()
+                    'error' => 'Atlas API error: ' . $response->status() . ' - ' . $response->body()
                 ];
             }
 
         } catch (Exception $e) {
-            \Log::error('MongoDB Atlas save exception: ' . $e->getMessage());
+            \Log::error('MongoDB save exception: ' . $e->getMessage());
             return [
                 'success' => false,
                 'error' => $e->getMessage()
@@ -81,17 +82,16 @@ class MongoSearchService
     public function getRecentSearches($userId = 'anonymous', $limit = 10)
     {
         try {
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'api-key' => $this->apiKey
-            ])->post($this->atlasUrl . '/action/find', [
-                'dataSource' => 'Cluster0',
-                'database' => $this->database,
-                'collection' => $this->collection,
-                'filter' => ['user_id' => $userId],
-                'sort' => ['timestamp' => -1],
-                'limit' => $limit
-            ]);
+            // Atlas Admin API ile find
+            $response = Http::withBasicAuth($this->publicKey, $this->privateKey)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post("https://cloud.mongodb.com/api/atlas/v1.0/groups/{$this->projectId}/clusters/{$this->clusterName}/restapi/find", [
+                    'database' => $this->database,
+                    'collection' => $this->collection,
+                    'filter' => ['user_id' => $userId],
+                    'sort' => ['timestamp' => -1],
+                    'limit' => $limit
+                ]);
 
             if ($response->successful()) {
                 $result = $response->json();
@@ -118,25 +118,23 @@ class MongoSearchService
     public function getPopularSearches($limit = 10)
     {
         try {
-            // Atlas Data API ile aggregation
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'api-key' => $this->apiKey
-            ])->post($this->atlasUrl . '/action/aggregate', [
-                'dataSource' => 'Cluster0',
-                'database' => $this->database,
-                'collection' => $this->collection,
-                'pipeline' => [
-                    ['$match' => ['timestamp' => ['$gte' => time() - (30 * 24 * 60 * 60)]]],
-                    ['$group' => [
-                        '_id' => '$search_query',
-                        'count' => ['$sum' => 1]
-                    ]],
-                    ['$match' => ['_id' => ['$ne' => '']]],
-                    ['$sort' => ['count' => -1]],
-                    ['$limit' => $limit]
-                ]
-            ]);
+            // Atlas Admin API ile aggregation
+            $response = Http::withBasicAuth($this->publicKey, $this->privateKey)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post("https://cloud.mongodb.com/api/atlas/v1.0/groups/{$this->projectId}/clusters/{$this->clusterName}/restapi/aggregate", [
+                    'database' => $this->database,
+                    'collection' => $this->collection,
+                    'pipeline' => [
+                        ['$match' => ['timestamp' => ['$gte' => time() - (30 * 24 * 60 * 60)]]],
+                        ['$group' => [
+                            '_id' => '$search_query',
+                            'count' => ['$sum' => 1]
+                        ]],
+                        ['$match' => ['_id' => ['$ne' => '']]],
+                        ['$sort' => ['count' => -1]],
+                        ['$limit' => $limit]
+                    ]
+                ]);
 
             if ($response->successful()) {
                 $result = $response->json();
@@ -163,17 +161,15 @@ class MongoSearchService
     public function getUserBehaviorAnalysis($userId)
     {
         try {
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'api-key' => $this->apiKey
-            ])->post($this->atlasUrl . '/action/find', [
-                'dataSource' => 'Cluster0',
-                'database' => $this->database,
-                'collection' => $this->collection,
-                'filter' => ['user_id' => $userId],
-                'sort' => ['timestamp' => -1],
-                'limit' => 50
-            ]);
+            $response = Http::withBasicAuth($this->publicKey, $this->privateKey)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post("https://cloud.mongodb.com/api/atlas/v1.0/groups/{$this->projectId}/clusters/{$this->clusterName}/restapi/find", [
+                    'database' => $this->database,
+                    'collection' => $this->collection,
+                    'filter' => ['user_id' => $userId],
+                    'sort' => ['timestamp' => -1],
+                    'limit' => 50
+                ]);
 
             if ($response->successful()) {
                 $result = $response->json();
@@ -217,17 +213,14 @@ class MongoSearchService
 
     public function getSearchStatistics()
     {
-        // Basit istatistik - son 7 günlük veri
         try {
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'api-key' => $this->apiKey
-            ])->post($this->atlasUrl . '/action/find', [
-                'dataSource' => 'Cluster0',
-                'database' => $this->database,
-                'collection' => $this->collection,
-                'filter' => ['timestamp' => ['$gte' => time() - (7 * 24 * 60 * 60)]]
-            ]);
+            $response = Http::withBasicAuth($this->publicKey, $this->privateKey)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post("https://cloud.mongodb.com/api/atlas/v1.0/groups/{$this->projectId}/clusters/{$this->clusterName}/restapi/find", [
+                    'database' => $this->database,
+                    'collection' => $this->collection,
+                    'filter' => ['timestamp' => ['$gte' => time() - (7 * 24 * 60 * 60)]]
+                ]);
 
             if ($response->successful()) {
                 $result = $response->json();
@@ -245,7 +238,37 @@ class MongoSearchService
 
     public function findSimilarUsers($userId, $limit = 5)
     {
-        // Basit implementation - gerçek benzerlik analizi karmaşık
-        return [];
+        try {
+            // Basit implementation - gerçek benzerlik analizi karmaşık
+            $response = Http::withBasicAuth($this->publicKey, $this->privateKey)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post("https://cloud.mongodb.com/api/atlas/v1.0/groups/{$this->projectId}/clusters/{$this->clusterName}/restapi/find", [
+                    'database' => $this->database,
+                    'collection' => $this->collection,
+                    'filter' => ['user_id' => ['$ne' => $userId]],
+                    'limit' => $limit
+                ]);
+
+            if ($response->successful()) {
+                $result = $response->json();
+                $similar = [];
+
+                foreach ($result['documents'] ?? [] as $doc) {
+                    $similar[] = [
+                        'user_id' => $doc['user_id'],
+                        'similarity_score' => 1,
+                        'last_activity' => $doc['timestamp'] ?? null
+                    ];
+                }
+
+                return $similar;
+            }
+
+            return [];
+
+        } catch (Exception $e) {
+            \Log::error('Find similar users error: ' . $e->getMessage());
+            return [];
+        }
     }
 }
