@@ -2,8 +2,8 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\JobSearchController;
-use App\Http\Controllers\Api\SearchAnalyticsController;
+use App\Http\Controllers\API\JobSearchController;
+use App\Http\Controllers\API\SearchAnalyticsController;
 
 /*
 |--------------------------------------------------------------------------
