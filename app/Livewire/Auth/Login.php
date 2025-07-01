@@ -58,7 +58,7 @@ class Login extends Component
                 return redirect()->intended('/');
             } else {
                 $error = $response->json();
-                $this->error = $this->getErrorMessage($error['error_description'] ?? 'Giriş hatası');
+                $this->error = $this->getErrorMessage($error);
             }
         } catch (\Exception $e) {
             $this->error = 'Bağlantı hatası oluştu. Lütfen tekrar deneyin.';
