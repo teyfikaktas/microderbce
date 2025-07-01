@@ -21,47 +21,65 @@ class SearchAnalyticsController extends Controller
      */
     public function saveSearch(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'position' => 'nullable|string|max:255',
-            'city' => 'nullable|string|max:255',
-            'user_id' => 'nullable|string',
-            'results_count' => 'nullable|integer|min:0'
-        ]);
+        \Log::info('SaveSearch called with data: ' . json_encode($request->all()));
 
-        if ($validator->fails()) {
+        try {
+            $validator = Validator::make($request->all(), [
+                'position' => 'nullable|string|max:255',
+                'city' => 'nullable|string|max:255',
+                'user_id' => 'nullable|string',
+                'results_count' => 'nullable|integer|min:0'
+            ]);
+
+            if ($validator->fails()) {
+                \Log::error('Validation failed: ' . json_encode($validator->errors()));
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Search query oluştur
+            $searchQuery = trim(($request->position ?? '') . ' - ' . ($request->city ?? ''), ' - ');
+
+            $searchData = [
+                'user_id' => $request->user_id ?? 'anonymous',
+                'search_query' => $searchQuery,
+                'position' => $request->position,
+                'city' => $request->city,
+                'filters' => $request->filters ?? [],
+                'results_count' => $request->results_count ?? 0
+            ];
+
+            \Log::info('Calling MongoSearchService with: ' . json_encode($searchData));
+
+            $result = $this->mongoSearchService->saveSearch($searchData);
+
+            \Log::info('MongoSearchService result: ' . json_encode($result));
+
+            if ($result['success']) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Arama kaydedildi',
+                    'id' => $result['id']
+                ], 201);
+            }
+
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
-        }
+                'message' => 'Arama kaydedilemedi',
+                'error' => $result['error']
+            ], 500);
 
-        // Search query oluştur
-        $searchQuery = trim(($request->position ?? '') . ' - ' . ($request->city ?? ''), ' - ');
-
-        $searchData = [
-            'user_id' => $request->user_id ?? 'anonymous',
-            'search_query' => $searchQuery,
-            'position' => $request->position,
-            'city' => $request->city,
-            'filters' => $request->filters ?? [],
-            'results_count' => $request->results_count ?? 0
-        ];
-
-        $result = $this->mongoSearchService->saveSearch($searchData);
-
-        if ($result['success']) {
+        } catch (\Exception $e) {
+            \Log::error('SaveSearch exception: ' . $e->getMessage() . ' - ' . $e->getTraceAsString());
+            
             return response()->json([
-                'success' => true,
-                'message' => 'Arama kaydedildi',
-                'id' => $result['id']
-            ], 201);
+                'success' => false,
+                'message' => 'Exception occurred',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            'success' => false,
-            'message' => 'Arama kaydedilemedi',
-            'error' => $result['error']
-        ], 500);
     }
 
     /**

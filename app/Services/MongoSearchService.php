@@ -13,10 +13,16 @@ class MongoSearchService
 
     public function __construct()
     {
+        \Log::info('MongoSearchService constructor called');
+        
         try {
+            \Log::info('MongoDB URI: ' . substr(env('MONGODB_URI'), 0, 50) . '...');
+            
             $this->client = new Client(env('MONGODB_URI'));
             $this->database = $this->client->selectDatabase('job_search_analytics');
             $this->collection = $this->database->selectCollection('user_searches');
+            
+            \Log::info('MongoDB connection successful');
         } catch (Exception $e) {
             \Log::error('MongoDB connection failed: ' . $e->getMessage());
         }
