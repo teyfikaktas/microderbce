@@ -74,17 +74,22 @@ class JobDetail extends Component
 
     public function apply()
     {
-        // Check if user is logged in
-        if (!auth()->check()) {
-            // Redirect to login page
+        // Laravel session'dan Supabase user bilgisini kontrol et
+        if (!session('user_id') || !session('access_token')) {
             return redirect()->route('login')->with('message', 'Başvuru yapmak için giriş yapmalısınız.');
         }
-
+    
         $this->showApplicationModal = true;
     }
 
     public function submitApplication()
     {
+        // Session kontrolü
+        if (!session('user_id')) {
+            session()->flash('error', 'Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.');
+            return redirect()->route('login');
+        }
+    
         $this->validate([
             'applicationData.name' => 'required|min:2',
             'applicationData.email' => 'required|email',
@@ -98,28 +103,25 @@ class JobDetail extends Component
             'applicationData.cover_letter.required' => 'Kapak mektubu gereklidir.',
             'applicationData.cover_letter.min' => 'Kapak mektubu en az 50 karakter olmalıdır.',
         ]);
-
+    
         try {
-            // Job Posting Service'e application gönder (şimdilik mock)
             $applicationData = array_merge($this->applicationData, [
                 'job_id' => $this->jobId,
-                'user_id' => auth()->id(),
+                'user_id' => session('user_id'), // Laravel session'dan al
                 'applied_at' => now()->toISOString()
             ]);
-
+    
             // TODO: Job Posting Service API call
-            // $response = Http::post('job-posting-api.../applications', $applicationData);
-
+            
             $this->showApplicationModal = false;
             $this->reset('applicationData');
             
             session()->flash('success', 'Başvurunuz başarıyla gönderildi!');
             
-            // Update application count
             if ($this->job) {
                 $this->job['application_count'] = ($this->job['application_count'] ?? 0) + 1;
             }
-
+    
         } catch (\Exception $e) {
             session()->flash('error', 'Başvuru gönderilirken bir hata oluştu.');
         }
