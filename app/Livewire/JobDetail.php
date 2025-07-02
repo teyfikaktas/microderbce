@@ -16,6 +16,7 @@ class JobDetail extends Component
     public $error = '';               // null yerine string
     public $showApplicationModal = false;
     public $hasUserApplied = false;
+    public $recentSearches = [];
 
     public $applicationData = [
         'cover_letter' => ''
