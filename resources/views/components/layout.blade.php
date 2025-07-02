@@ -74,7 +74,8 @@
     @if(session('user_id'))
     <!-- AI Chat Widget -->
     <livewire:a-i-chat-widget />
-    
+    <livewire:new-job-alerts />
+
 @else
     <!-- AI Chat for Guest Users -->
     <div class="fixed bottom-6 right-6 z-50">
