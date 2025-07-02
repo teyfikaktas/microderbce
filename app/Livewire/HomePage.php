@@ -341,13 +341,25 @@ class HomePage extends Component
             'user_city' => $this->getUserCity()
         ];
     }
-
     public function render()
     {
+        $userInfo = $this->getUserInfo();
+        
+        // Eğer admin@admin.com ise Admin Layout kullan, değilse normal layout
+        if (isset($userInfo['user_email']) && $userInfo['user_email'] === 'admin@admin.com') {
+            return view('livewire.home-page', [
+                'userInfo' => $userInfo
+            ])->layout('components.admin-layout', [
+                'pageTitle' => 'Admin Dashboard'
+            ]);
+        }
+    
+        // Normal kullanıcı için
         return view('livewire.home-page', [
-            'userInfo' => $this->getUserInfo()
+            'userInfo' => $userInfo
         ])->layout('components.layout', [
             'title' => 'Ana Sayfa - MicroJob'
         ]);
     }
+    
 }

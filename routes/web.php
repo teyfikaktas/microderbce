@@ -4,10 +4,46 @@ use Illuminate\Support\Facades\Route;
 use App\Livewire\HomePage;
 use App\Livewire\JobDetail;
 use Illuminate\Support\Facades\Http;
+use App\Http\Controllers\Admin\JobController;
 
 // Route::get('/', function () {
 //     return view('welcome');
 // });
+Route::prefix('admin')
+    ->middleware(function ($request, $next) {
+        if ($request->session()->get('user_email') !== 'admin@admin.com') {
+            // Yetkili değilse login sayfasına yönlendir
+            return redirect()->route('login');
+        }
+        return $next($request);
+    })
+    ->name('admin.')
+    ->group(function() {
+
+        // Listeleme
+        Route::get('jobs', [JobController::class, 'index'])
+            ->name('jobs.index');
+
+        // Yeni iş formu
+        Route::get('jobs/create', [JobController::class, 'create'])
+            ->name('jobs.create');
+
+        // Kaydet
+        Route::post('jobs', [JobController::class, 'store'])
+            ->name('jobs.store');
+
+        // Düzenleme formu
+        Route::get('jobs/{id}/edit', [JobController::class, 'edit'])
+            ->name('jobs.edit');
+
+        // Güncelle
+        Route::put('jobs/{id}', [JobController::class, 'update'])
+            ->name('jobs.update');
+
+        // Sil
+        Route::delete('jobs/{id}', [JobController::class, 'destroy'])
+            ->name('jobs.destroy');
+    });
 Route::get('/', HomePage::class);
 Route::get('/jobs/{id}', JobDetail::class)->name('job.detail');
 // routes/web.php
@@ -81,4 +117,5 @@ Route::prefix('api/ai')->group(function () {
 
         return $response->successful() ? $response->json() : ['success' => false, 'messages' => []];
     })->name('ai.history');
+    
 });
