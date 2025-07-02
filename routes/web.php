@@ -14,7 +14,7 @@ Route::get('/jobs/{id}', JobDetail::class)->name('job.detail');
 Route::get('/login', App\Livewire\Auth\Login::class)->name('login');
 Route::get('/register', App\Livewire\Auth\Register::class)->name('register');
 Route::get('/company-register', App\Livewire\Auth\CompanyRegister::class)->name('company.register');
-Route::post('/logout', function() {
+Route::match(['GET', 'POST'], '/logout', function() {
     auth()->logout();
     return redirect('/');
 })->name('logout');
