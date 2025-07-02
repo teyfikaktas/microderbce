@@ -52,15 +52,15 @@ class AIChatWidget extends Component
             $this->error = 'Lütfen giriş yapın.';
             return redirect('/login');
         }
-
+    
         if (empty(trim($this->newMessage))) {
             return;
         }
-
+    
         $this->isLoading = true;
         $this->isTyping = true;
         $this->error = null;
-
+    
         try {
             // Add user message to chat
             $this->messages[] = [
@@ -70,15 +70,20 @@ class AIChatWidget extends Component
                 'timestamp' => now()->toISOString(),
                 'intent' => null
             ];
-
+    
             $messageToSend = $this->newMessage;
             $this->newMessage = '';
-
-            // Send to AI API via main site proxy
-            $response = Http::timeout(30)->post(route('ai.chat'), [
-                'message' => $messageToSend
-            ]);
-
+    
+            // Doğrudan AI API'ye gönder (route proxy kullanmak yerine)
+            $response = Http::timeout(30)->post(
+                'https://ai-api.elastic-swartz.213-238-168-122.plesk.page/api/chat',
+                [
+                    'message' => $messageToSend,
+                    'user_id' => session('user_id'),
+                    'session_id' => session()->getId()
+                ]
+            );
+    
             if ($response->successful()) {
                 $data = $response->json();
                 
@@ -96,16 +101,16 @@ class AIChatWidget extends Component
                     $this->error = $data['message'] ?? 'AI yanıt veremedi.';
                 }
             } else {
-                $this->error = 'AI servisi şu anda kullanılamıyor.';
+                $this->error = 'AI servisi şu anda kullanılamıyor. Status: ' . $response->status();
             }
-
+    
         } catch (\Exception $e) {
-            $this->error = 'Bağlantı hatası oluştu.';
+            $this->error = 'Bağlantı hatası oluştu: ' . $e->getMessage();
         } finally {
             $this->isLoading = false;
             $this->isTyping = false;
         }
-
+    
         // Auto scroll to bottom
         $this->dispatch('scrollToBottom');
     }
@@ -115,10 +120,13 @@ class AIChatWidget extends Component
         if (!session('user_id')) {
             return;
         }
-
+    
         try {
-            $response = Http::timeout(10)->get(route('ai.history'));
-
+            // Doğrudan AI API'den history al
+            $response = Http::timeout(10)->get(
+                "https://ai-api.elastic-swartz.213-238-168-122.plesk.page/api/chat/history/" . session('user_id')
+            );
+    
             if ($response->successful()) {
                 $data = $response->json();
                 
@@ -127,7 +135,7 @@ class AIChatWidget extends Component
                         return [
                             'message' => $msg['message'],
                             'response' => $msg['response'],
-                            'is_user' => false, // These are conversation pairs
+                            'is_user' => false,
                             'timestamp' => $msg['created_at'],
                             'intent' => $msg['intent']
                         ];
