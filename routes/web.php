@@ -28,8 +28,24 @@ Route::get('/register', Register::class)->name('register');
 Route::get('/company-register', CompanyRegister::class)->name('company.register');
 
 Route::match(['GET','POST'], '/logout', function () {
-    auth()->logout();
-    return redirect()->route('home');
+    // Supabase'den logout yap
+    if (session('access_token')) {
+        try {
+            Http::withHeaders([
+                'apikey' => env('SUPABASE_ANON_KEY'),
+                'Authorization' => 'Bearer ' . session('access_token'),
+                'Content-Type' => 'application/json'
+            ])->post(env('SUPABASE_URL') . '/auth/v1/logout');
+        } catch (\Exception $e) {
+            // Supabase logout hatası olsa bile local session'ı temizle
+        }
+    }
+    
+    // Laravel session'ını temizle
+    session()->flush();
+    session()->regenerate();
+    
+    return redirect()->route('home')->with('success', 'Başarıyla çıkış yaptınız.');
 })->name('logout');
 
 /*
