@@ -1,60 +1,71 @@
 {{-- resources/views/components/admin-layout.blade.php --}}
-<div class="d-flex vh-100">
-
-  {{-- Sidebar --}}
-  <nav class="bg-light border-end" style="width:240px;">
-    <div class="p-3">
-      <h4>{{ config('app.name') }} Admin</h4>
-    </div>
-    <ul class="nav flex-column px-2">
-      <li class="nav-item">
-        <a class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}" 
-           href="{{ route('admin.dashboard') }}">Dashboard</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {{ request()->routeIs('admin.companies.*') ? 'active' : '' }}" 
-           href="{{ route('admin.companies.index') }}">Companies</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {{ request()->routeIs('admin.jobs.*') ? 'active' : '' }}" 
-           href="{{ route('admin.jobs.index') }}">Job Postings</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}" 
-           href="{{ route('admin.users.index') }}">Users</a>
-      </li>
-    </ul>
-  </nav>
-
-  {{-- Main Content --}}
-  <div class="flex-fill d-flex flex-column">
-
-    {{-- Topbar --}}
-    <header class="navbar navbar-light bg-white border-bottom px-4">
-      <div class="container-fluid d-flex justify-content-between">
-        <h1 class="h5 m-0">{{ $pageTitle ?? '' }}</h1>
-        <div class="d-flex align-items-center">
-          <span class="me-3">Admin, {{ auth()->user()->name ?? 'Guest' }}</span>
-          <form method="POST" action="{{ route('logout') }}">
-            @csrf
-            <button class="btn btn-sm btn-outline-danger">Logout</button>
-          </form>
+<div class="flex h-screen">
+    {{-- Sidebar --}}
+    <nav class="bg-gray-100 border-r border-gray-200" style="width:240px;">
+        <div class="p-4">
+            <h4 class="text-xl font-semibold text-gray-800">{{ config('app.name') }} Admin</h4>
         </div>
-      </div>
-    </header>
+        <ul class="flex flex-col px-2 space-y-1">
+            <li>
+                <a class="flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors {{ request()->routeIs('admin.dashboard') ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}"
+                   href="{{ route('admin.dashboard') }}">
+                    Dashboard
+                </a>
+            </li>
+            <li>
+                <a class="flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors {{ request()->routeIs('admin.companies.*') ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}"
+                   href="{{ route('admin.companies.index') }}">
+                    Companies
+                </a>
+            </li>
+            <li>
+                <a class="flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors {{ request()->routeIs('admin.jobs.*') ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}"
+                   href="{{ route('admin.jobs.index') }}">
+                    Job Postings
+                </a>
+            </li>
+            <li>
+                <a class="flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors {{ request()->routeIs('admin.users.*') ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}"
+                   href="{{ route('admin.users.index') }}">
+                    Users
+                </a>
+            </li>
+        </ul>
+    </nav>
 
-    {{-- Flash Messages --}}
-    <main class="p-4 overflow-auto">
-      @if(session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
-      @endif
-      @if(session('error'))
-        <div class="alert alert-danger">{{ session('error') }}</div>
-      @endif
+    {{-- Main Content --}}
+    <div class="flex-1 flex flex-col">
+        {{-- Topbar --}}
+        <header class="bg-white border-b border-gray-200 px-4 py-3">
+            <div class="flex justify-between items-center">
+                <h1 class="text-xl font-semibold text-gray-800">{{ $pageTitle ?? '' }}</h1>
+                <div class="flex items-center space-x-4">
+                    <span class="text-gray-600">Admin, {{ auth()->user()->name ?? 'Guest' }}</span>
+                    <form method="POST" action="{{ route('logout') }}" class="inline">
+                        @csrf
+                        <button class="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 px-3 py-1 rounded-md text-sm font-medium border border-red-200 transition-colors">
+                            Logout
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </header>
 
-      {{-- Buraya child içeriği gelecek --}}
-      {{ $slot }}
-    </main>
+        {{-- Main Content Area --}}
+        <main class="flex-1 p-6 overflow-auto bg-gray-50">
+            {{-- Flash Messages --}}
+            @if(session('success'))
+                <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md mb-4">
+                    {{ session('success') }}
+                </div>
+            @endif
+            
+            @if(session('error'))
+                <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md mb-4">
+                    {{ session('error') }}
+                </div>
+            @endif
 
-  </div>
+        </main>
+    </div>
 </div>
