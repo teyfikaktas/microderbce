@@ -24,7 +24,36 @@ Route::middleware('api')->group(function () {
         Route::get('/{id}/related', [JobSearchController::class, 'getRelatedJobs']);
         Route::post('/search', [JobSearchController::class, 'search']);
     });
+// routes/api.php (ana site)
 
+Route::middleware(['auth:sanctum'])->prefix('ai')->group(function () {
+    
+    // AI Chat proxy
+    Route::post('/chat', function(Request $request) {
+        $user = auth()->user();
+        
+        $response = Http::timeout(30)->post(
+            'https://ai-api.elastic-swartz.213-238-168-122.plesk.page/api/chat',
+            array_merge($request->all(), [
+                'user_id' => $user->id,
+                'session_id' => session()->getId()
+            ])
+        );
+        
+        return $response->json();
+    })->name('ai.chat');
+    
+    // Chat history
+    Route::get('/history', function() {
+        $user = auth()->user();
+        
+        $response = Http::timeout(10)->get(
+            "https://ai-api.elastic-swartz.213-238-168-122.plesk.page/api/chat/history/{$user->id}"
+        );
+        
+        return $response->json();
+    })->name('ai.history');
+});
     // Search Analytics routes (MongoDB)
     Route::prefix('v1/search-analytics')->group(function () {
         // Arama kaydet

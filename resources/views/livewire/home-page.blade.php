@@ -74,7 +74,10 @@
         </div>
     </section>
     @endif
-
+    @auth
+    <!-- AI Chat Widget -->
+    <livewire:ai-chat-widget />
+@endauth
     <!-- Job Listings -->
     <section class="py-12">
         <div class="container mx-auto px-4">
