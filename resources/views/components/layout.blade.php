@@ -73,7 +73,7 @@
     @endif
     @if(session('user_id'))
     <!-- AI Chat Widget -->
-    <livewire:ai-chat-widget />
+    <livewire:a-i-chat-widget />
 @else
     <!-- AI Chat for Guest Users -->
     <div class="fixed bottom-6 right-6 z-50">
