@@ -20,28 +20,11 @@
             <h4 class="text-xl font-semibold text-gray-800">{{ config('app.name') }} Admin</h4>
         </div>
         <ul class="flex flex-col px-2 space-y-1">
-            <li>
-                <a class="flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors {{ request()->routeIs('admin.dashboard') ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}"
-                   href="{{ route('admin.dashboard') }}">
-                    Dashboard
-                </a>
-            </li>
-            <li>
-                <a class="flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors {{ request()->routeIs('admin.companies.*') ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}"
-                   href="{{ route('admin.companies.index') }}">
-                    Companies
-                </a>
-            </li>
+
             <li>
                 <a class="flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors {{ request()->routeIs('admin.jobs.*') ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}"
                    href="{{ route('admin.jobs.index') }}">
                     Job Postings
-                </a>
-            </li>
-            <li>
-                <a class="flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors {{ request()->routeIs('admin.users.*') ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}"
-                   href="{{ route('admin.users.index') }}">
-                    Users
                 </a>
             </li>
         </ul>
