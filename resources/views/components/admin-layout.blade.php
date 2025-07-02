@@ -1,4 +1,18 @@
 {{-- resources/views/components/admin-layout.blade.php --}}
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ $title ?? 'MicroJob Admin - Yönetim Paneli' }}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Livewire Styles -->
+    @livewireStyles
+</head>
+<body class="bg-gray-50">
 <div class="flex h-screen">
     {{-- Sidebar --}}
     <nav class="bg-gray-100 border-r border-gray-200" style="width:240px;">
@@ -66,6 +80,12 @@
                 </div>
             @endif
 
+            {{ $slot }}
         </main>
     </div>
 </div>
+
+    <!-- Livewire Scripts -->
+    @livewireScripts
+</body>
+</html>
