@@ -26,32 +26,56 @@ Route::middleware('api')->group(function () {
     });
 // routes/api.php (ana site)
 
-Route::middleware(['auth:sanctum'])->prefix('ai')->group(function () {
+// Session-based AI routes
+Route::prefix('ai')->group(function () {
     
     // AI Chat proxy
     Route::post('/chat', function(Request $request) {
-        $user = auth()->user();
+        $userId = session('user_id');
+        
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Giriş gerekli'
+            ], 401);
+        }
         
         $response = Http::timeout(30)->post(
             'https://ai-api.elastic-swartz.213-238-168-122.plesk.page/api/chat',
             array_merge($request->all(), [
-                'user_id' => $user->id,
+                'user_id' => $userId,
                 'session_id' => session()->getId()
             ])
         );
         
-        return $response->json();
+        if ($response->successful()) {
+            return $response->json();
+        }
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'AI servisi kullanılamıyor'
+        ], 500);
+        
     })->name('ai.chat');
     
     // Chat history
     Route::get('/history', function() {
-        $user = auth()->user();
+        $userId = session('user_id');
+        
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'messages' => []
+            ]);
+        }
         
         $response = Http::timeout(10)->get(
-            "https://ai-api.elastic-swartz.213-238-168-122.plesk.page/api/chat/history/{$user->id}"
+            "https://ai-api.elastic-swartz.213-238-168-122.plesk.page/api/chat/history/{$userId}"
         );
         
-        return $response->json();
+        return $response->successful() ? $response->json() : ['success' => false, 'messages' => []];
+        
     })->name('ai.history');
 });
     // Search Analytics routes (MongoDB)
