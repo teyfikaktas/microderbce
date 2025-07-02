@@ -9,21 +9,22 @@ use Illuminate\Support\Facades\Redis;
 class JobDetail extends Component
 {
     public $jobId;
-    public $job = [];                 // null değil, boş dizi
-    public $relatedJobs = [];         // mutlaka dizi
-    public $company = [];             // boş dizi
+    public $job = [];
+    public $company = [];
+    public $relatedJobs = [];
     public $loading = true;
-    public $error = '';               // null yerine string
+    public $error = '';
     public $showApplicationModal = false;
     public $hasUserApplied = false;
     public $recentSearches = [];
+    public $jobs = [];
 
     public $applicationData = [
         'cover_letter' => ''
     ];
 
-    private $apiUrl             = 'https://job-search-api.elastic-swartz.213-238-168-122.plesk.page/api/v1';
-    private $applicationApiUrl  = 'https://job-apply.elastic-swartz.213-238-168-122.plesk.page/api/v1';
+    private $apiUrl            = 'https://job-search-api.elastic-swartz.213-238-168-122.plesk.page/api/v1';
+    private $applicationApiUrl = 'https://job-apply.elastic-swartz.213-238-168-122.plesk.page/api/v1';
 
     public function mount($id)
     {
@@ -31,6 +32,9 @@ class JobDetail extends Component
         $this->loadJobDetail();
         $this->loadRelatedJobs();
         $this->checkUserApplication();
+
+        // Eğer bu sayfada "jobs" diye listelemek istersen:
+        $this->jobs = $this->relatedJobs;
     }
 
     public function loadJobDetail()
@@ -39,7 +43,6 @@ class JobDetail extends Component
         $this->error   = '';
 
         $cacheKey = "job_detail:{$this->jobId}";
-
         if ($cached = Redis::get($cacheKey)) {
             $this->job     = json_decode($cached, true) ?: [];
             $this->company = $this->job['company'] ?? [];
@@ -48,9 +51,7 @@ class JobDetail extends Component
         }
 
         try {
-            $response = Http::timeout(10)
-                ->get("{$this->apiUrl}/jobs/{$this->jobId}");
-
+            $response = Http::timeout(10)->get("{$this->apiUrl}/jobs/{$this->jobId}");
             if ($response->successful()) {
                 $this->job     = $response->json() ?: [];
                 $this->company = $this->job['company'] ?? [];
@@ -68,16 +69,13 @@ class JobDetail extends Component
     public function loadRelatedJobs()
     {
         $cacheKey = "related_jobs:{$this->jobId}";
-
         if ($cached = Redis::get($cacheKey)) {
             $this->relatedJobs = json_decode($cached, true) ?: [];
             return;
         }
 
         try {
-            $response = Http::timeout(5)
-                ->get("{$this->apiUrl}/jobs/{$this->jobId}/related");
-
+            $response = Http::timeout(5)->get("{$this->apiUrl}/jobs/{$this->jobId}/related");
             if ($response->successful()) {
                 $this->relatedJobs = $response->json() ?: [];
                 Redis::setex($cacheKey, 300, json_encode($this->relatedJobs));
@@ -104,8 +102,6 @@ class JobDetail extends Component
                 $apps = $response->json()['data'] ?? [];
                 $this->hasUserApplied = collect($apps)
                     ->contains(fn($app) => ($app['job_posting_id'] ?? null) == $this->jobId);
-            } else {
-                $this->hasUserApplied = false;
             }
         } catch (\Exception $e) {
             $this->hasUserApplied = false;
@@ -136,6 +132,10 @@ class JobDetail extends Component
 
         $this->validate([
             'applicationData.cover_letter' => 'required|min:50|max:2000',
+        ], [
+            'applicationData.cover_letter.required' => 'Kapak mektubu gereklidir.',
+            'applicationData.cover_letter.min'      => 'Kapak mektubu en az 50 karakter olmalıdır.',
+            'applicationData.cover_letter.max'      => 'Kapak mektubu en fazla 2000 karakter olabilir.',
         ]);
 
         try {
