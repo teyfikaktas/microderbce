@@ -39,11 +39,19 @@ Route::match(['GET','POST'], '/logout', function () {
 Route::prefix('admin')
     ->name('admin.')
     ->group(function () {
-        Route::get('jobs', [JobController::class, 'index'])->name('jobs.index');
-        Route::get('jobs/create', [JobController::class, 'create'])->name('jobs.create');
-        Route::post('jobs', [JobController::class, 'store'])->name('jobs.store');
-        Route::get('jobs/{id}/edit', [JobController::class, 'edit'])->name('jobs.edit');
-        Route::put('jobs/{id}', [JobController::class, 'update'])->name('jobs.update');
+
+        // Dashboard rotası (admin.dashboard)
+        Route::get('/', function() {
+            // İstersen kendi admin paneline yönlendir
+            return redirect()->route('admin.jobs.index');
+        })->name('dashboard');
+
+        // Job CRUD
+        Route::get('jobs',         [JobController::class, 'index'])->name('jobs.index');
+        Route::get('jobs/create',  [JobController::class, 'create'])->name('jobs.create');
+        Route::post('jobs',        [JobController::class, 'store'])->name('jobs.store');
+        Route::get('jobs/{id}/edit',[JobController::class, 'edit'])->name('jobs.edit');
+        Route::put('jobs/{id}',    [JobController::class, 'update'])->name('jobs.update');
         Route::delete('jobs/{id}', [JobController::class, 'destroy'])->name('jobs.destroy');
     });
 
