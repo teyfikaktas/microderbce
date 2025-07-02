@@ -10,6 +10,7 @@ class JobDetail extends Component
     public $jobId;
     public $job = null;
     public $relatedJobs = [];
+    public $recentSearches= [];
     public $company = null;
     public $loading = true;
     public $error = null;
