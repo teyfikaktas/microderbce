@@ -71,7 +71,34 @@
             {{ session('info') }}
         </div>
     @endif
+    @if(session('user_id'))
+    <!-- AI Chat Widget -->
+    <livewire:ai-chat-widget />
+@else
+    <!-- AI Chat for Guest Users -->
+    <div class="fixed bottom-6 right-6 z-50">
+        <button 
+            onclick="showLoginPrompt()"
+            class="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition-all duration-200 transform hover:scale-105"
+            title="AI İş Asistanı - Giriş Gerekli"
+        >
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-4l-4 4z"></path>
+            </svg>
+            <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                🔒
+            </span>
+        </button>
+    </div>
 
+    <script>
+        function showLoginPrompt() {
+            if (confirm('AI İş Asistanı için giriş yapmanız gerekiyor. Giriş sayfasına yönlendirilsin mi?')) {
+                window.location.href = '/login';
+            }
+        }
+    </script>
+@endif
     <!-- Main Content -->
     <main>
         {{ $slot }}

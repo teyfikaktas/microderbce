@@ -22,21 +22,22 @@ class AIChatWidget extends Component
 
     public function mount()
     {
-        // Only load for authenticated users
-        if (Auth::check()) {
+        // Session-based authentication check
+        if (session('user_id')) {
             $this->loadChatHistory();
         }
     }
 
     public function openChat()
     {
-        if (Auth::check()) {
+        if (session('user_id')) {
             $this->isOpen = true;
             if (empty($this->messages)) {
                 $this->loadChatHistory();
             }
         } else {
-            $this->dispatch('showLoginModal');
+            // Redirect to login
+            return redirect('/login');
         }
     }
 
@@ -47,9 +48,9 @@ class AIChatWidget extends Component
 
     public function sendMessage()
     {
-        if (!Auth::check()) {
+        if (!session('user_id')) {
             $this->error = 'Lütfen giriş yapın.';
-            return;
+            return redirect('/login');
         }
 
         if (empty(trim($this->newMessage))) {
@@ -111,7 +112,7 @@ class AIChatWidget extends Component
 
     public function loadChatHistory()
     {
-        if (!Auth::check()) {
+        if (!session('user_id')) {
             return;
         }
 
@@ -144,7 +145,7 @@ class AIChatWidget extends Component
         
         try {
             Http::timeout(5)->post('https://ai-api.elastic-swartz.213-238-168-122.plesk.page/api/chat/clear-context', [
-                'user_id' => Auth::id()
+                'user_id' => session('user_id')
             ]);
         } catch (\Exception $e) {
             // Silent fail
