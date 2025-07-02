@@ -160,6 +160,6 @@ class AIChatWidget extends Component
 
     public function render()
     {
-        return view('livewire.ai-chat-widget');
+        return view('livewire.a-i-chat-widget');
     }
 }
