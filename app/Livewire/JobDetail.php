@@ -4,59 +4,55 @@ namespace App\Livewire;
 
 use Livewire\Component;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Redis;  // ← Bunu ekleyin
+use Illuminate\Support\Facades\Redis;
+
 class JobDetail extends Component
 {
     public $jobId;
-    public $job = null;
-    public $relatedJobs = [];
-    public $company = null;
+    public $job = [];                 // null değil, boş dizi
+    public $relatedJobs = [];         // mutlaka dizi
+    public $company = [];             // boş dizi
     public $loading = true;
-    public $error = null;
+    public $error = '';               // null yerine string
     public $showApplicationModal = false;
-    public $hasUserApplied = false; // Yeni eklendi
-    
-    // Sadece cover letter (basitleştirilmiş)
+    public $hasUserApplied = false;
+
     public $applicationData = [
         'cover_letter' => ''
     ];
 
-    // API URLs
-    private $apiUrl = 'https://job-search-api.elastic-swartz.213-238-168-122.plesk.page/api/v1';
-    private $applicationApiUrl = 'https://job-apply.elastic-swartz.213-238-168-122.plesk.page/api/v1';
+    private $apiUrl             = 'https://job-search-api.elastic-swartz.213-238-168-122.plesk.page/api/v1';
+    private $applicationApiUrl  = 'https://job-apply.elastic-swartz.213-238-168-122.plesk.page/api/v1';
 
     public function mount($id)
     {
         $this->jobId = $id;
         $this->loadJobDetail();
         $this->loadRelatedJobs();
-        $this->checkUserApplication(); // Yeni eklendi
+        $this->checkUserApplication();
     }
 
     public function loadJobDetail()
     {
         $this->loading = true;
-        $this->error   = null;
+        $this->error   = '';
 
-        // 1) Cache anahtarını oluştur
         $cacheKey = "job_detail:{$this->jobId}";
 
-        // 2) Eğer Redis’te varsa, doğrudan kullan
         if ($cached = Redis::get($cacheKey)) {
-            $this->job     = json_decode($cached, true);
-            $this->company = $this->job['company'] ?? null;
+            $this->job     = json_decode($cached, true) ?: [];
+            $this->company = $this->job['company'] ?? [];
             $this->loading = false;
             return;
         }
 
-        // 3) Cache’te yoksa API’dan çek
         try {
-            $response = Http::timeout(10)->get($this->apiUrl . '/jobs/' . $this->jobId);
-            if ($response->successful()) {
-                $this->job     = $response->json();
-                $this->company = $this->job['company'] ?? null;
+            $response = Http::timeout(10)
+                ->get("{$this->apiUrl}/jobs/{$this->jobId}");
 
-                // 4) Redis’e kaydet (900 saniye = 15 dk)
+            if ($response->successful()) {
+                $this->job     = $response->json() ?: [];
+                $this->company = $this->job['company'] ?? [];
                 Redis::setex($cacheKey, 900, json_encode($this->job));
             } else {
                 $this->error = 'İş ilanı bulunamadı.';
@@ -70,11 +66,22 @@ class JobDetail extends Component
 
     public function loadRelatedJobs()
     {
+        $cacheKey = "related_jobs:{$this->jobId}";
+
+        if ($cached = Redis::get($cacheKey)) {
+            $this->relatedJobs = json_decode($cached, true) ?: [];
+            return;
+        }
+
         try {
-            $response = Http::timeout(5)->get($this->apiUrl . '/jobs/' . $this->jobId . '/related');
+            $response = Http::timeout(5)
+                ->get("{$this->apiUrl}/jobs/{$this->jobId}/related");
 
             if ($response->successful()) {
-                $this->relatedJobs = $response->json();
+                $this->relatedJobs = $response->json() ?: [];
+                Redis::setex($cacheKey, 300, json_encode($this->relatedJobs));
+            } else {
+                $this->relatedJobs = [];
             }
         } catch (\Exception $e) {
             $this->relatedJobs = [];
@@ -83,25 +90,21 @@ class JobDetail extends Component
 
     public function checkUserApplication()
     {
-        // Kullanıcı giriş yapmamışsa kontrol etme
         if (!session('user_id')) {
             $this->hasUserApplied = false;
             return;
         }
 
         try {
-            // Job Application Service'den kullanıcının bu işe başvurup başvurmadığını kontrol et
-            $response = Http::timeout(5)->get(
-                $this->applicationApiUrl . '/applications/user/' . session('user_id')
-            );
+            $response = Http::timeout(5)
+                ->get("{$this->applicationApiUrl}/applications/user/" . session('user_id'));
 
             if ($response->successful()) {
-                $applications = $response->json()['data'] ?? [];
-                
-                // Bu job_id'ye başvuru var mı kontrol et
-                $this->hasUserApplied = collect($applications)->contains(function ($application) {
-                    return $application['job_posting_id'] == $this->jobId;
-                });
+                $apps = $response->json()['data'] ?? [];
+                $this->hasUserApplied = collect($apps)
+                    ->contains(fn($app) => ($app['job_posting_id'] ?? null) == $this->jobId);
+            } else {
+                $this->hasUserApplied = false;
             }
         } catch (\Exception $e) {
             $this->hasUserApplied = false;
@@ -110,12 +113,11 @@ class JobDetail extends Component
 
     public function apply()
     {
-        // Session kontrolü - Supabase auth
         if (!session('user_id') || !session('access_token')) {
-            return redirect()->route('login')->with('message', 'Başvuru yapmak için giriş yapmalısınız.');
+            return redirect()->route('login')
+                ->with('message', 'Başvuru yapmak için giriş yapmalısınız.');
         }
 
-        // Zaten başvurmuşsa
         if ($this->hasUserApplied) {
             session()->flash('info', 'Bu iş ilanına zaten başvurmuşsunuz.');
             return;
@@ -126,7 +128,6 @@ class JobDetail extends Component
 
     public function submitApplication()
     {
-        // Session kontrolü
         if (!session('user_id')) {
             session()->flash('error', 'Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.');
             return redirect()->route('login');
@@ -134,51 +135,39 @@ class JobDetail extends Component
 
         $this->validate([
             'applicationData.cover_letter' => 'required|min:50|max:2000',
-        ], [
-            'applicationData.cover_letter.required' => 'Kapak mektubu gereklidir.',
-            'applicationData.cover_letter.min' => 'Kapak mektubu en az 50 karakter olmalıdır.',
-            'applicationData.cover_letter.max' => 'Kapak mektubu en fazla 2000 karakter olabilir.',
         ]);
 
         try {
-            $applicationData = [
-                'job_posting_id' => (int)$this->jobId,
-                'user_id' => session('user_id'),
-                'cover_letter' => $this->applicationData['cover_letter'],
-                'resume_path' => null
+            $payload = [
+                'job_posting_id' => (int) $this->jobId,
+                'user_id'        => session('user_id'),
+                'cover_letter'   => $this->applicationData['cover_letter'],
+                'resume_path'    => null,
             ];
 
-            // Job Application Service'e gönder
-            $response = Http::timeout(10)->post(
-                $this->applicationApiUrl . '/applications',
-                $applicationData
-            );
+            $response = Http::timeout(10)
+                ->post("{$this->applicationApiUrl}/applications", $payload);
 
             if ($response->successful()) {
                 $this->showApplicationModal = false;
                 $this->reset('applicationData');
-                $this->hasUserApplied = true; // Başvuru durumunu güncelle
-                
+                $this->hasUserApplied = true;
+
                 session()->flash('success', 'Başvurunuz başarıyla gönderildi! 🎉');
-                
-                // Application count'u güncelle
-                if ($this->job) {
-                    $this->job['application_count'] = ($this->job['application_count'] ?? 0) + 1;
-                }
+
+                $this->job['application_count'] = ($this->job['application_count'] ?? 0) + 1;
             } else {
-                $error = $response->json();
-                
                 if ($response->status() === 409) {
-                    $this->hasUserApplied = true; // Zaten başvurmuş
+                    $this->hasUserApplied = true;
                     session()->flash('error', 'Bu iş ilanına daha önce başvuru yapmışsınız.');
                 } elseif ($response->status() === 422) {
-                    $errorMessages = collect($error['errors'] ?? [])->flatten()->implode(' ');
-                    session()->flash('error', 'Validation hatası: ' . $errorMessages);
+                    $errs = collect($response->json('errors', []))
+                        ->flatten()->implode(' ');
+                    session()->flash('error', "Validation hatası: {$errs}");
                 } else {
-                    session()->flash('error', $error['message'] ?? 'Başvuru gönderilirken bir hata oluştu.');
+                    session()->flash('error', $response->json('message', 'Başvuru gönderilirken bir hata oluştu.'));
                 }
             }
-
         } catch (\Exception $e) {
             session()->flash('error', 'Başvuru gönderilirken bir hata oluştu: ' . $e->getMessage());
         }
@@ -206,54 +195,20 @@ class JobDetail extends Component
             session()->flash('error', 'İş ilanını kaydetmek için giriş yapmalısınız.');
             return;
         }
-
-        // TODO: Save job functionality
         session()->flash('success', 'İş ilanı kaydedildi!');
     }
 
     public function reportJob()
     {
-        // TODO: Report job functionality
         session()->flash('info', 'Raporlama talebiniz alındı.');
-    }
-
-    public function getFormattedSalary()
-    {
-        if (!$this->job) return null;
-
-        $min = $this->job['salary_min'] ?? null;
-        $max = $this->job['salary_max'] ?? null;
-        $currency = $this->job['currency'] ?? 'TRY';
-
-        if ($min && $max) {
-            return number_format($min) . ' - ' . number_format($max) . ' ' . $currency;
-        } elseif ($min) {
-            return number_format($min) . '+ ' . $currency;
-        } elseif ($max) {
-            return 'Max ' . number_format($max) . ' ' . $currency;
-        }
-
-        return 'Maaş belirtilmemiş';
-    }
-
-    public function getTimeAgo()
-    {
-        if (!$this->job || !isset($this->job['created_at'])) {
-            return '';
-        }
-
-        try {
-            $createdAt = \Carbon\Carbon::parse($this->job['created_at']);
-            return $createdAt->diffForHumans();
-        } catch (\Exception $e) {
-            return '';
-        }
     }
 
     public function render()
     {
-        return view('livewire.job-detail')->layout('components.layout', [
-            'title' => $this->job ? $this->job['title'] . ' - ' . ($this->company['name'] ?? '') : 'İş İlanı Detayı'
-        ]);
+        return view('livewire.job-detail')
+            ->layout('components.layout', [
+                'title' => ($this->job['title'] ?? 'İş İlanı Detayı')
+                    . ' - ' . ($this->company['name'] ?? ''),
+            ]);
     }
 }
