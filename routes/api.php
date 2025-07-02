@@ -28,12 +28,10 @@ Route::middleware('api')->group(function () {
 // routes/api.php (ana site)
 
 // Session-based AI routes
-Route::prefix('ai')->group(function () {
-    
+Route::prefix('ai')->middleware(['web'])->group(function () {
     // AI Chat proxy
     Route::post('/chat', function(Request $request) {
         $userId = session('user_id');
-        
         if (!$userId) {
             return response()->json([
                 'success' => false,
@@ -48,35 +46,32 @@ Route::prefix('ai')->group(function () {
                 'session_id' => session()->getId()
             ])
         );
-        
+
         if ($response->successful()) {
             return $response->json();
         }
-        
+
         return response()->json([
             'success' => false,
             'message' => 'AI servisi kullanılamıyor'
         ], 500);
-        
     })->name('ai.chat');
-    
+
     // Chat history
     Route::get('/history', function() {
         $userId = session('user_id');
-        
         if (!$userId) {
             return response()->json([
                 'success' => false,
                 'messages' => []
             ]);
         }
-        
+
         $response = Http::timeout(10)->get(
             "https://ai-api.elastic-swartz.213-238-168-122.plesk.page/api/chat/history/{$userId}"
         );
-        
+
         return $response->successful() ? $response->json() : ['success' => false, 'messages' => []];
-        
     })->name('ai.history');
 });
     // Search Analytics routes (MongoDB)
