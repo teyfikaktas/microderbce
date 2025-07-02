@@ -1,0 +1,798 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Validator;
+
+class AIChatController extends Controller
+{
+    /**
+     * Main chat endpoint
+     */
+    public function chat(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'message' => 'required|string|max:1000',
+                'user_id' => 'nullable|string',
+                'session_id' => 'nullable|string'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $message = $request->input('message');
+            $userId = $request->input('user_id');
+            $sessionId = $request->input('session_id', session()->getId());
+
+            // Get chat context from history
+            $context = $this->getChatContext($userId, $sessionId);
+
+            // Simple intent analysis with context
+            $intent = $this->simpleIntentAnalysis($message, $context);
+            
+            // Generate response
+            $response = $this->generateResponse($intent, $message, $userId);
+
+            // Save to chat history
+            $this->saveChatMessage($userId, $sessionId, $message, $response['message'], $intent['intent']);
+
+            return response()->json([
+                'success' => true,
+                'response' => $response['message'],
+                'intent' => $intent['intent'],
+                'data' => $response['data'] ?? null,
+                'session_id' => $sessionId,
+                'timestamp' => now()->toISOString()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Üzgünüm, şu anda size yardım edemiyorum.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal error'
+            ], 500);
+        }
+    }
+
+    /**
+     * Test Gemini AI connection
+     */
+    public function testGemini()
+    {
+        try {
+            $apiKey = env('GEMINI_API_KEY');
+            
+            if (!$apiKey) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gemini API key not configured'
+                ]);
+            }
+
+            $response = Http::timeout(10)->post(
+                'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=' . $apiKey,
+                [
+                    'contents' => [
+                        ['parts' => [['text' => 'Test message. Just say "OK"']]]
+                    ]
+                ]
+            );
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? 'No response';
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Gemini AI connection successful',
+                    'response' => $text,
+                    'status' => $response->status()
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gemini API failed',
+                'status' => $response->status(),
+                'error' => $response->body()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gemini connection error: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Test Supabase connection
+     */
+    public function testSupabase()
+    {
+        try {
+            $supabaseUrl = env('SUPABASE_URL');
+            $supabaseKey = env('SUPABASE_ANON_KEY');
+            
+            if (!$supabaseUrl || !$supabaseKey) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Supabase credentials not configured'
+                ]);
+            }
+
+            $response = Http::withHeaders([
+                'apikey' => $supabaseKey,
+                'Authorization' => 'Bearer ' . $supabaseKey
+            ])->get($supabaseUrl . '/rest/v1/user_searches?limit=1');
+
+            if ($response->successful()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Supabase connection successful',
+                    'status' => $response->status(),
+                    'data_count' => count($response->json())
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Supabase connection failed',
+                'status' => $response->status(),
+                'error' => $response->body()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Supabase connection error: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Test main site connection
+     */
+    public function testMainSite()
+    {
+        try {
+            $mainSiteUrl = env('MAIN_SITE_URL');
+            
+            if (!$mainSiteUrl) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Main site URL not configured'
+                ]);
+            }
+
+            $response = Http::timeout(10)->get($mainSiteUrl . '/api/health');
+            
+            if ($response->successful()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Main site connection successful',
+                    'main_site_response' => $response->json()
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Main site connection failed',
+                'status' => $response->status()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Main site connection error: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Get agent status
+     */
+    public function getAgentStatus()
+    {
+        return response()->json([
+            'success' => true,
+            'status' => 'active',
+            'services' => [
+                'gemini' => env('GEMINI_API_KEY') ? 'configured' : 'not_configured',
+                'supabase' => env('SUPABASE_URL') ? 'configured' : 'not_configured',
+                'main_site' => env('MAIN_SITE_URL') ? 'configured' : 'not_configured'
+            ],
+            'timestamp' => now()->toISOString()
+        ]);
+    }
+
+    /**
+     * Simple intent analysis with user context
+     */
+    private function simpleIntentAnalysis(string $message, array $context = []): array
+    {
+        $lowerMsg = strtolower($message);
+        
+        if (str_contains($lowerMsg, 'merhaba') || str_contains($lowerMsg, 'selam')) {
+            return ['intent' => 'GREETING', 'confidence' => 0.9, 'context_used' => false];
+        }
+        
+        if (str_contains($lowerMsg, 'teşekkür') || str_contains($lowerMsg, 'sağol')) {
+            return ['intent' => 'THANKS', 'confidence' => 0.9, 'context_used' => false];
+        }
+        
+        if (str_contains($lowerMsg, 'yardım') || str_contains($lowerMsg, 'neler yapabilir')) {
+            return ['intent' => 'HELP', 'confidence' => 0.9, 'context_used' => false];
+        }
+
+        // Profile/recommendation request
+        if (str_contains($lowerMsg, 'profil') || str_contains($lowerMsg, 'öner') || str_contains($lowerMsg, 'geçmiş')) {
+            return ['intent' => 'USER_PROFILE', 'confidence' => 0.9, 'context_used' => true];
+        }
+
+        // Context-aware analysis
+        if (!empty($context['recent_chat_searches']) || !empty($context['user_search_history'])) {
+            if (str_contains($lowerMsg, 'devam') || str_contains($lowerMsg, 'daha fazla') || str_contains($lowerMsg, 'başka')) {
+                return ['intent' => 'CONTINUE_SEARCH', 'confidence' => 0.8, 'context_used' => true];
+            }
+            
+            if (str_contains($lowerMsg, 'aynı') || str_contains($lowerMsg, 'benzer') || str_contains($lowerMsg, 'tekrar')) {
+                return ['intent' => 'SIMILAR_SEARCH', 'confidence' => 0.8, 'context_used' => true];
+            }
+        }
+        
+        // Check for cities and job terms
+        $cities = ['istanbul', 'ankara', 'izmir', 'antalya', 'bursa'];
+        $jobTerms = ['developer', 'frontend', 'backend', 'web', 'iş', 'arıyorum', 'pozisyon'];
+        
+        $hasCity = false;
+        $hasJobTerm = false;
+        
+        foreach ($cities as $city) {
+            if (str_contains($lowerMsg, $city)) {
+                $hasCity = true;
+                break;
+            }
+        }
+        
+        foreach ($jobTerms as $term) {
+            if (str_contains($lowerMsg, $term)) {
+                $hasJobTerm = true;
+                break;
+            }
+        }
+        
+        if ($hasCity || $hasJobTerm) {
+            return ['intent' => 'SEARCH_JOBS', 'confidence' => 0.8, 'context_used' => false];
+        }
+        
+        return ['intent' => 'GENERAL', 'confidence' => 0.5, 'context_used' => false];
+    }
+
+    /**
+     * Generate response based on intent and context
+     */
+    private function generateResponse(array $intent, string $message, ?string $userId): array
+    {
+        switch ($intent['intent']) {
+            case 'GREETING':
+                return $this->generateGreetingResponse($userId);
+                
+            case 'THANKS':
+                return [
+                    'message' => '😊 Rica ederim! Başka iş arama konusunda yardımcı olabileceğim bir şey var mı?'
+                ];
+                
+            case 'HELP':
+                return $this->generateHelpResponse($userId);
+                
+            case 'USER_PROFILE':
+                return $this->generateProfileResponse($userId);
+                
+            case 'CONTINUE_SEARCH':
+            case 'SIMILAR_SEARCH':
+                return $this->generateContinueSearchResponse($userId);
+                
+            case 'SEARCH_JOBS':
+                return $this->searchJobs($message, $userId);
+                
+            default:
+                return $this->generateGeneralResponse($userId);
+        }
+    }
+
+    /**
+     * Generate personalized greeting based on user history
+     */
+    private function generateGreetingResponse(?string $userId): array
+    {
+        if (!$userId) {
+            return [
+                'message' => '👋 Merhaba! Size iş aramada nasıl yardımcı olabilirim? Hangi pozisyon ve şehirde iş arıyorsunuz?'
+            ];
+        }
+
+        $searches = $this->getUserSearchHistory($userId, 5);
+        $preferences = $this->analyzeUserPreferences($searches);
+
+        if (!empty($preferences['preferred_positions']) || !empty($preferences['preferred_cities'])) {
+            $message = "👋 Tekrar hoş geldiniz! ";
+            
+            if (!empty($preferences['preferred_positions'])) {
+                $message .= "Daha önce " . implode(', ', $preferences['preferred_positions']) . " pozisyonlarında ";
+            }
+            
+            if (!empty($preferences['preferred_cities'])) {
+                $message .= implode(', ', $preferences['preferred_cities']) . " şehirlerinde ";
+            }
+            
+            $message .= "arama yaptığınızı görüyorum. Yine aynı tür işler mi arıyorsunuz?";
+            
+            return [
+                'message' => $message,
+                'data' => ['user_preferences' => $preferences]
+            ];
+        }
+
+        return [
+            'message' => '👋 Hoş geldiniz! Size iş aramada nasıl yardımcı olabilirim?'
+        ];
+    }
+
+    /**
+     * Generate help response with user context
+     */
+    private function generateHelpResponse(?string $userId): array
+    {
+        $baseMessage = '🤖 Size şu konularda yardımcı olabilirim:\n\n• İş arama ("İstanbul web developer")\n• Popüler pozisyonlar\n• Şehir bazlı iş ilanları';
+        
+        if ($userId) {
+            $searches = $this->getUserSearchHistory($userId, 3);
+            if (!empty($searches)) {
+                $baseMessage .= '\n• Geçmiş aramalarınıza göre öneriler\n• Profil analizi';
+                
+                $recentQueries = array_slice(array_column($searches, 'search_query'), 0, 2);
+                if (!empty($recentQueries)) {
+                    $baseMessage .= '\n\nSon aramalarınız: ' . implode(', ', array_filter($recentQueries));
+                }
+            }
+        }
+        
+        $baseMessage .= '\n\nHangi şehirde, hangi pozisyonda iş arıyorsunuz?';
+        
+        return ['message' => $baseMessage];
+    }
+
+    /**
+     * Generate profile response
+     */
+    private function generateProfileResponse(?string $userId): array
+    {
+        if (!$userId) {
+            return [
+                'message' => 'Profil analizi için kullanıcı girişi gereklidir. Giriş yaptıktan sonra geçmiş aramalarınızı analiz edebilirim.'
+            ];
+        }
+
+        $searches = $this->getUserSearchHistory($userId, 20);
+        $preferences = $this->analyzeUserPreferences($searches);
+
+        if (empty($searches)) {
+            return [
+                'message' => 'Henüz arama geçmişiniz yok. İlk aramanızı yaparak başlayabilirsiniz!'
+            ];
+        }
+
+        $message = "📊 Profil Analiziniz:\n\n";
+        $message .= "🔍 Toplam arama: {$preferences['total_searches']}\n";
+        
+        if (!empty($preferences['preferred_positions'])) {
+            $message .= "💼 İlgi alanları: " . implode(', ', $preferences['preferred_positions']) . "\n";
+        }
+        
+        if (!empty($preferences['preferred_cities'])) {
+            $message .= "🌍 Tercih edilen şehirler: " . implode(', ', $preferences['preferred_cities']) . "\n";
+        }
+        
+        $message .= "📈 Arama sıklığı: " . $preferences['search_frequency'] . "\n\n";
+        $message .= "Hangi konuda yardım istiyorsunuz?";
+
+        return [
+            'message' => $message,
+            'data' => ['profile' => $preferences]
+        ];
+    }
+
+    /**
+     * Generate continue search response
+     */
+    private function generateContinueSearchResponse(?string $userId): array
+    {
+        if (!$userId) {
+            return [
+                'message' => 'Devam etmek için hangi tür iş arıyorsunuz?'
+            ];
+        }
+
+        $searches = $this->getUserSearchHistory($userId, 3);
+        
+        if (empty($searches)) {
+            return [
+                'message' => 'Henüz arama geçmişiniz yok. Hangi pozisyon ve şehirde iş arıyorsunuz?'
+            ];
+        }
+
+        $lastSearch = $searches[0];
+        $position = $lastSearch['position'] ?? '';
+        $city = $lastSearch['city'] ?? '';
+
+        if ($position || $city) {
+            $message = "🔄 Son aramanıza benzer işler arıyorsunuz:\n";
+            if ($position) $message .= "• Pozisyon: {$position}\n";
+            if ($city) $message .= "• Şehir: {$city}\n";
+            $message .= "\nBu kriterlerde arama yapayım mı?";
+            
+            // Actually perform the search
+            return $this->searchJobs(($position . ' ' . $city), $userId);
+        }
+
+        return [
+            'message' => 'Son aramanızı tekrar yapmak için pozisyon ve şehir belirtin.'
+        ];
+    }
+
+    /**
+     * Generate general response
+     */
+    private function generateGeneralResponse(?string $userId): array
+    {
+        $message = 'Size nasıl yardımcı olabilirim? İş aramak için şehir ve pozisyon belirtebilirsiniz.';
+        
+        if ($userId) {
+            $searches = $this->getUserSearchHistory($userId, 2);
+            if (!empty($searches)) {
+                $recentQueries = array_filter(array_column($searches, 'search_query'));
+                if (!empty($recentQueries)) {
+                    $message .= ' Son aramalarınız: ' . implode(', ', array_slice($recentQueries, 0, 2));
+                }
+            }
+        }
+        
+        return ['message' => $message];
+    }
+
+    /**
+     * Search jobs (simple mock for now)
+     */
+    private function searchJobs(string $message, ?string $userId): array
+    {
+        try {
+            // Try to call main site API
+            $mainSiteUrl = env('MAIN_SITE_URL');
+            
+            if ($mainSiteUrl) {
+                $response = Http::timeout(10)->post($mainSiteUrl . '/api/search', [
+                    'position' => $this->extractPosition($message),
+                    'city' => $this->extractCity($message),
+                    'user_id' => $userId,
+                    'limit' => 5
+                ]);
+                
+                if ($response->successful()) {
+                    $data = $response->json();
+                    $jobs = $data['data'] ?? [];
+                    
+                    if (count($jobs) > 0) {
+                        $message = "🎯 " . count($jobs) . " iş buldum:\n\n";
+                        
+                        foreach ($jobs as $index => $job) {
+                            $num = $index + 1;
+                            $message .= "{$num}. **{$job['position']}**\n";
+                            $message .= "   🏢 " . ($job['company_name'] ?? 'Şirket') . "\n";
+                            $message .= "   📍 {$job['city']}\n";
+                            if (isset($job['salary_min'])) {
+                                $message .= "   💰 " . number_format($job['salary_min']) . "₺+\n";
+                            }
+                            $message .= "\n";
+                        }
+                        
+                        $message .= "Detaylı bilgi için: " . $mainSiteUrl;
+                        
+                        return [
+                            'message' => $message,
+                            'data' => ['jobs' => $jobs]
+                        ];
+                    }
+                }
+            }
+            
+            // Fallback response
+            return [
+                'message' => "🔍 İş araması yapıyorum...\n\nŞu anda ana sistemle bağlantım yok, ancak size şu önerileri verebilirim:\n\n• İstanbul'da web developer pozisyonları\n• Ankara'da frontend developer işleri\n• Remote çalışma imkanları\n\nDetaylı arama için ana siteyi ziyaret edin: " . ($mainSiteUrl ?: 'https://elastic-swartz.213-238-168-122.plesk.page')
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'message' => "😔 Şu anda iş arama servisinde sorun yaşıyoruz. Ana siteyi kontrol edebilirsiniz: " . (env('MAIN_SITE_URL') ?: 'https://elastic-swartz.213-238-168-122.plesk.page')
+            ];
+        }
+    }
+
+    /**
+     * Extract position from message
+     */
+    private function extractPosition(string $message): ?string
+    {
+        $positions = ['developer', 'frontend', 'backend', 'web', 'mobile', 'full stack'];
+        $lowerMsg = strtolower($message);
+        
+        foreach ($positions as $position) {
+            if (str_contains($lowerMsg, $position)) {
+                return $position;
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Extract city from message
+     */
+    private function extractCity(string $message): ?string
+    {
+        $cities = ['istanbul', 'ankara', 'izmir', 'antalya', 'bursa'];
+        $lowerMsg = strtolower($message);
+        
+        foreach ($cities as $city) {
+            if (str_contains($lowerMsg, $city)) {
+                return ucfirst($city);
+            }
+        }
+        
+        return null;
+    }
+
+    // Placeholder methods for other routes
+    public function getHistory(Request $request, $userId = null) 
+    { 
+        try {
+            $userId = $userId ?: $request->input('user_id');
+            $sessionId = $request->input('session_id');
+            $limit = min(50, max(1, $request->input('limit', 20)));
+            
+            $messages = $this->getChatHistory($userId, $sessionId, $limit);
+            
+            return response()->json([
+                'success' => true,
+                'messages' => $messages,
+                'count' => count($messages),
+                'user_id' => $userId,
+                'session_id' => $sessionId
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    public function clearContext(Request $request) 
+    { 
+        try {
+            $userId = $request->input('user_id');
+            $sessionId = $request->input('session_id');
+            
+            if ($userId || $sessionId) {
+                // Clear specific user/session context
+                return response()->json([
+                    'success' => true, 
+                    'message' => 'Chat context cleared for user/session'
+                ]);
+            }
+            
+            return response()->json([
+                'success' => true, 
+                'message' => 'Global context cleared'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Get chat context from history + user searches
+     */
+    private function getChatContext(?string $userId, ?string $sessionId): array
+    {
+        try {
+            // 1. Chat history context
+            $messages = $this->getChatHistory($userId, $sessionId, 5);
+            
+            // 2. User search history context
+            $userSearches = $this->getUserSearchHistory($userId);
+            
+            $context = [
+                'recent_messages' => count($messages),
+                'recent_chat_searches' => [],
+                'user_search_history' => $userSearches,
+                'user_preferences' => $this->analyzeUserPreferences($userSearches)
+            ];
+            
+            // Extract search patterns from recent chat messages
+            foreach ($messages as $message) {
+                if ($message['intent'] === 'SEARCH_JOBS') {
+                    $context['recent_chat_searches'][] = $message['message'];
+                }
+            }
+            
+            return $context;
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Get user's search history from user_searches table
+     */
+    private function getUserSearchHistory(?string $userId, int $limit = 10): array
+    {
+        try {
+            if (!$userId) {
+                return [];
+            }
+
+            $supabaseUrl = env('SUPABASE_URL');
+            $supabaseKey = env('SUPABASE_ANON_KEY');
+            
+            if (!$supabaseUrl || !$supabaseKey) {
+                return [];
+            }
+
+            $response = Http::withHeaders([
+                'apikey' => $supabaseKey,
+                'Authorization' => 'Bearer ' . $supabaseKey
+            ])->get($supabaseUrl . '/rest/v1/user_searches', [
+                'user_id' => "eq.{$userId}",
+                'order' => 'searched_at.desc',
+                'limit' => $limit,
+                'select' => 'search_query,position,city,searched_at,filters'
+            ]);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            return [];
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Analyze user preferences from search history
+     */
+    private function analyzeUserPreferences(array $searches): array
+    {
+        if (empty($searches)) {
+            return [];
+        }
+
+        $positions = [];
+        $cities = [];
+        $preferences = [];
+
+        foreach ($searches as $search) {
+            if (!empty($search['position'])) {
+                $positions[] = $search['position'];
+            }
+            if (!empty($search['city'])) {
+                $cities[] = $search['city'];
+            }
+        }
+
+        // Most frequent positions
+        $positionCounts = array_count_values($positions);
+        arsort($positionCounts);
+        $preferences['preferred_positions'] = array_slice(array_keys($positionCounts), 0, 3);
+
+        // Most frequent cities  
+        $cityCounts = array_count_values($cities);
+        arsort($cityCounts);
+        $preferences['preferred_cities'] = array_slice(array_keys($cityCounts), 0, 3);
+
+        // Search frequency
+        $preferences['total_searches'] = count($searches);
+        $preferences['search_frequency'] = count($searches) > 10 ? 'high' : (count($searches) > 3 ? 'medium' : 'low');
+
+        return $preferences;
+    }
+
+    /**
+     * Get chat history from Supabase
+     */
+    private function getChatHistory(?string $userId, ?string $sessionId, int $limit = 20): array
+    {
+        try {
+            $supabaseUrl = env('SUPABASE_URL');
+            $supabaseKey = env('SUPABASE_ANON_KEY');
+            
+            if (!$supabaseUrl || !$supabaseKey) {
+                return [];
+            }
+
+            $filters = ['order' => 'created_at.desc', 'limit' => $limit];
+            
+            if ($userId) {
+                $filters['user_id'] = "eq.{$userId}";
+            } elseif ($sessionId) {
+                $filters['session_id'] = "eq.{$sessionId}";
+            } else {
+                return [];
+            }
+
+            $response = Http::withHeaders([
+                'apikey' => $supabaseKey,
+                'Authorization' => 'Bearer ' . $supabaseKey
+            ])->get($supabaseUrl . '/rest/v1/chat_messages', $filters);
+
+            if ($response->successful()) {
+                return array_reverse($response->json()); // Oldest first
+            }
+
+            return [];
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Save chat message to Supabase
+     */
+    private function saveChatMessage(?string $userId, ?string $sessionId, string $message, string $response, string $intent): void
+    {
+        try {
+            $supabaseUrl = env('SUPABASE_URL');
+            $supabaseKey = env('SUPABASE_ANON_KEY');
+            
+            if (!$supabaseUrl || !$supabaseKey) {
+                return;
+            }
+
+            $data = [
+                'user_id' => $userId,
+                'session_id' => $sessionId,
+                'message' => $message,
+                'response' => $response,
+                'intent' => $intent,
+                'metadata' => [
+                    'user_agent' => request()->userAgent(),
+                    'ip_address' => request()->ip()
+                ]
+            ];
+
+            Http::withHeaders([
+                'apikey' => $supabaseKey,
+                'Authorization' => 'Bearer ' . $supabaseKey,
+                'Content-Type' => 'application/json'
+            ])->post($supabaseUrl . '/rest/v1/chat_messages', $data);
+
+        } catch (\Exception $e) {
+            // Silent fail - chat should work even if history fails
+        }
+    }
+    public function getUserProfile() { return response()->json(['message' => 'Profile feature coming soon']); }
+    public function getUserBehavior() { return response()->json(['message' => 'Behavior analysis coming soon']); }
+    public function getRecentSearches() { return response()->json(['message' => 'Recent searches coming soon']); }
+    public function getRecommendations() { return response()->json(['message' => 'Recommendations coming soon']); }
+    public function getSimilarUsers() { return response()->json(['message' => 'Similar users coming soon']); }
+    public function getPopularSearches() { return response()->json(['message' => 'Popular searches coming soon']); }
+    public function getStatistics() { return response()->json(['message' => 'Statistics coming soon']); }
+    public function resetAgent() { return response()->json(['message' => 'Agent reset']); }
+    public function handleSupabaseWebhook() { return response()->json(['message' => 'Webhook received']); }
+    public function handleJobUpdates() { return response()->json(['message' => 'Job updates received']); }
+}

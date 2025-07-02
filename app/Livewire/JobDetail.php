@@ -4,7 +4,7 @@ namespace App\Livewire;
 
 use Livewire\Component;
 use Illuminate\Support\Facades\Http;
-
+use Illuminate\Support\Facades\Redis;  // ← Bunu ekleyin
 class JobDetail extends Component
 {
     public $jobId;
@@ -36,14 +36,28 @@ class JobDetail extends Component
     public function loadJobDetail()
     {
         $this->loading = true;
-        $this->error = null;
+        $this->error   = null;
 
+        // 1) Cache anahtarını oluştur
+        $cacheKey = "job_detail:{$this->jobId}";
+
+        // 2) Eğer Redis’te varsa, doğrudan kullan
+        if ($cached = Redis::get($cacheKey)) {
+            $this->job     = json_decode($cached, true);
+            $this->company = $this->job['company'] ?? null;
+            $this->loading = false;
+            return;
+        }
+
+        // 3) Cache’te yoksa API’dan çek
         try {
             $response = Http::timeout(10)->get($this->apiUrl . '/jobs/' . $this->jobId);
-
             if ($response->successful()) {
-                $this->job = $response->json();
+                $this->job     = $response->json();
                 $this->company = $this->job['company'] ?? null;
+
+                // 4) Redis’e kaydet (900 saniye = 15 dk)
+                Redis::setex($cacheKey, 900, json_encode($this->job));
             } else {
                 $this->error = 'İş ilanı bulunamadı.';
             }
