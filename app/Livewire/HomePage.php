@@ -4,7 +4,6 @@ namespace App\Livewire;
 
 use Livewire\Component;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Auth;
 
 class HomePage extends Component
 {
@@ -21,8 +20,8 @@ class HomePage extends Component
 
     public function mount()
     {
-        // Get authenticated user ID or set as null for anonymous
-        $this->userId = Auth::check() ? Auth::id() : null;
+        // Get authenticated user ID from session or set as null for anonymous
+        $this->userId = session('user_id');
         
         $this->loadJobs();
         $this->loadRecentSearches();
@@ -97,10 +96,9 @@ class HomePage extends Component
      */
     private function getUserCity()
     {
-        if (Auth::check()) {
-            // User authenticated - get city from profile
-            $user = Auth::user();
-            return $user->city ?? 'Istanbul'; // Fallback to Istanbul
+        if (session('user_id')) {
+            // User authenticated - get city from session or profile
+            return session('user_city', 'Istanbul'); // Fallback to Istanbul
         }
         
         // Anonymous user - try to get from browser location or use default
@@ -336,10 +334,10 @@ class HomePage extends Component
     public function getUserInfo()
     {
         return [
-            'is_authenticated' => Auth::check(),
-            'user_id' => $this->userId,
-            'user_name' => Auth::check() ? Auth::user()->name : 'Misafir',
-            'user_email' => Auth::check() ? Auth::user()->email : null,
+            'is_authenticated' => !empty(session('user_id')),
+            'user_id' => session('user_id'),
+            'user_name' => session('user_name', 'Misafir'),
+            'user_email' => session('user_email'),
             'user_city' => $this->getUserCity()
         ];
     }
