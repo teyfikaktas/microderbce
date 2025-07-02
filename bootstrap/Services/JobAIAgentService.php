@@ -366,7 +366,7 @@ EOT;
             
             // Call job search API
             $response = Http::timeout(10)->post(
-                'https://job-search-api.elastic-swartz.213-238-168-122.plesk.page/api/search',
+                'https://ai-api.elastic-swartz.213-238-168-122.plesk.page/api/search',
                 $searchData
             );
             
