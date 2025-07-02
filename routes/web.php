@@ -3,19 +3,23 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
+
+// Livewire components
 use App\Livewire\HomePage;
 use App\Livewire\JobDetail;
 use App\Livewire\Auth\Login;
 use App\Livewire\Auth\Register;
 use App\Livewire\Auth\CompanyRegister;
+
+// Admin controllers
 use App\Http\Controllers\Admin\JobController;
+use App\Http\Controllers\Admin\CompanyController;
 
 /*
 |--------------------------------------------------------------------------
 | Public Web Routes
 |--------------------------------------------------------------------------
 */
-
 Route::get('/', HomePage::class)->name('home');
 Route::get('/jobs/{id}', JobDetail::class)->name('job.detail');
 
@@ -30,29 +34,39 @@ Route::match(['GET','POST'], '/logout', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Admin Routes (Job Management)
+| Admin Routes (Job / Company / User Management)
 |--------------------------------------------------------------------------
-|
-| Erişim kontrolü JobController içindeki ensureAdmin() ile yapılır.
-|
+| AdminController içindeki ensureAdmin() metodu ile erişim kontrolü yapılır.
 */
 Route::prefix('admin')
     ->name('admin.')
     ->group(function () {
 
-        // Dashboard rotası (admin.dashboard)
-        Route::get('/', function() {
-            // İstersen kendi admin paneline yönlendir
+        // Dashboard
+        Route::get('/', function () {
             return redirect()->route('admin.jobs.index');
         })->name('dashboard');
 
-        // Job CRUD
+        // Job Postings CRUD
         Route::get('jobs',         [JobController::class, 'index'])->name('jobs.index');
         Route::get('jobs/create',  [JobController::class, 'create'])->name('jobs.create');
         Route::post('jobs',        [JobController::class, 'store'])->name('jobs.store');
         Route::get('jobs/{id}/edit',[JobController::class, 'edit'])->name('jobs.edit');
         Route::put('jobs/{id}',    [JobController::class, 'update'])->name('jobs.update');
         Route::delete('jobs/{id}', [JobController::class, 'destroy'])->name('jobs.destroy');
+
+        // Companies CRUD
+        Route::get('companies',           [CompanyController::class, 'index']) ->name('companies.index');
+        Route::get('companies/create',    [CompanyController::class, 'create'])->name('companies.create');
+        Route::post('companies',          [CompanyController::class, 'store']) ->name('companies.store');
+        Route::get('companies/{id}/edit', [CompanyController::class, 'edit'])  ->name('companies.edit');
+        Route::put('companies/{id}',      [CompanyController::class, 'update'])->name('companies.update');
+        Route::delete('companies/{id}',   [CompanyController::class, 'destroy'])->name('companies.destroy');
+
+        // Users management stub (ileride UserController eklenebilir)
+        Route::get('users', function() {
+            return view('admin.users.index');
+        })->name('users.index');
     });
 
 /*
