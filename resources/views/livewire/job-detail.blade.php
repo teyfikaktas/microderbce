@@ -1,313 +1,306 @@
 <div>
-    <!-- Hero Section -->
-    <section class="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-16">
-        <div class="container mx-auto px-4">
-            <div class="text-center mb-8">
-                <h1 class="text-4xl md:text-5xl font-bold mb-4">
-                    Hayalinizdeki İşi Bulun
-                </h1>
-                <p class="text-xl text-blue-100">
-                    Binlerce iş ilanı arasından size uygun olanı keşfedin
-                </p>
-            </div>
-
-            <!-- Search Form -->
-            <div class="max-w-4xl mx-auto">
-                <div class="bg-white rounded-lg shadow-lg p-6">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <!-- Position Search -->
-                        <div class="relative">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
-                                Pozisyon
-                            </label>
-                            <input 
-                                type="text" 
-                                wire:model="searchPosition"
-                                placeholder="Web Developer, Frontend..."
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                            >
-                        </div>
-
-                        <!-- City Search -->
-                        <div class="relative">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
-                                Şehir
-                            </label>
-                            <input 
-                                type="text" 
-                                wire:model="searchCity"
-                                placeholder="İstanbul, Ankara..."
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                            >
-                        </div>
-
-                        <!-- Search Button -->
-                        <div class="flex items-end">
-                            <button 
-                                wire:click="search"
-                                wire:loading.attr="disabled"
-                                wire:loading.class="opacity-50"
-                                class="w-full bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition duration-200 font-medium disabled:opacity-50"
-                            >
-                                <span wire:loading.remove>İş Ara</span>
-                                <span wire:loading>Aranıyor...</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Clear Search Button -->
-                    @if(!empty($searchPosition) || !empty($searchCity))
-                    <div class="mt-4 text-center">
-                        <button 
-                            wire:click="clearSearch"
-                            class="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                        >
-                            Aramayı Temizle
-                        </button>
-                    </div>
-                    @endif
-                </div>
-            </div>
-
-            <!-- User Info -->
-            @if(isset($userInfo))
-            <div class="max-w-4xl mx-auto mt-4 text-center">
-                <div class="bg-blue-700 bg-opacity-50 rounded-lg p-4 text-blue-100">
-                    @if($userInfo['is_authenticated'])
-                        <p>Hoş geldin, <strong>{{ $userInfo['user_name'] }}</strong>! 👋</p>
-                        <p class="text-sm">Şehir: {{ $userInfo['user_city'] }}</p>
-                    @else
-                        <p>Misafir kullanıcı olarak görüntülüyorsunuz</p>
-                        <a href="/login" class="text-blue-200 hover:text-white underline">Giriş yapın</a>
-                    @endif
-                </div>
-            </div>
-            @endif
+    @if ($loading)
+        <!-- Loading State -->
+        <div class="min-h-screen flex items-center justify-center">
+            <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
         </div>
-    </section>
-
-    <!-- Recent Searches -->
-    @if(count($recentSearches) > 0)
-    <section class="py-8 bg-gray-100">
-        <div class="container mx-auto px-4">
-            <h2 class="text-lg font-semibold text-gray-800 mb-4">Son Aramalarım</h2>
-            <div class="flex flex-wrap gap-2">
-                @foreach($recentSearches as $search)
-                    <button 
-                        wire:click="selectRecentSearch('{{ $search }}')"
-                        class="bg-white text-gray-700 px-4 py-2 rounded-full shadow-sm hover:shadow-md transition duration-200 text-sm hover:bg-blue-50"
-                    >
-                        {{ $search }}
-                    </button>
-                @endforeach
+    @elseif ($error)
+        <!-- Error State -->
+        <div class="min-h-screen flex items-center justify-center">
+            <div class="text-center">
+                <div class="text-red-500 text-6xl mb-4">❌</div>
+                <h1 class="text-2xl font-bold text-gray-800 mb-4">{{ $error }}</h1>
+                <a href="/" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+                    Ana Sayfaya Dön
+                </a>
             </div>
         </div>
-    </section>
-    @endif
-
-    <!-- Loading State -->
-    <div wire:loading class="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg p-6 shadow-lg">
-            <div class="flex items-center space-x-3">
-                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                <span>Yükleniyor...</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Error Message -->
-    @if($error)
-    <section class="py-4">
-        <div class="container mx-auto px-4">
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
-                <strong>Hata:</strong> {{ $error }}
-            </div>
-        </div>
-    </section>
-    @endif
-
-    <!-- Job Listings -->
-    <section class="py-12">
-        <div class="container mx-auto px-4">
-            <div class="flex justify-between items-center mb-8">
-                <h2 class="text-2xl font-bold text-gray-800">
-                    @if(!empty($searchPosition) || !empty($searchCity))
-                        Arama Sonuçları
-                        @if(!empty($searchPosition) && !empty($searchCity))
-                            - {{ $searchPosition }} ({{ $searchCity }})
-                        @elseif(!empty($searchPosition))
-                            - {{ $searchPosition }}
-                        @elseif(!empty($searchCity))
-                            - {{ $searchCity }}
-                        @endif
-                    @else
-                        Son İş İlanları
-                    @endif
-                </h2>
-                <span class="text-gray-600">{{ count($jobs) }} ilan bulundu</span>
-            </div>
-
-            @if(count($jobs) > 0)
-                <div class="grid gap-6">
-                    @foreach($jobs as $job)
-                        <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition duration-200 border border-gray-200">
+    @elseif ($job)
+        <!-- Job Detail Content -->
+        <div class="bg-gray-50 min-h-screen py-8">
+            <div class="container mx-auto px-4">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    
+                    <!-- Main Content (Left 2/3) -->
+                    <div class="lg:col-span-2">
+                        <!-- Job Header -->
+                        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
                             <div class="flex justify-between items-start mb-4">
                                 <div class="flex-1">
-                                    <h3 class="text-xl font-semibold text-gray-800 mb-2">
-                                        {{ $job['position'] ?? 'Pozisyon Belirtilmemiş' }}
-                                    </h3>
-                                    
-                                    @if(isset($job['company_name']))
-                                    <p class="text-lg text-blue-600 font-medium mb-2">
-                                        {{ $job['company_name'] }}
-                                    </p>
-                                    @endif
-
-                                    <div class="flex flex-wrap items-center text-sm text-gray-500 space-x-4 mb-2">
-                                        <span class="flex items-center">
-                                            📍 {{ $job['city'] ?? 'Şehir belirtilmemiş' }}
-                                        </span>
-                                        
-                                        @if(isset($job['work_type']))
-                                        <span class="flex items-center">
-                                            💼 {{ ucfirst($job['work_type']) }}
-                                        </span>
-                                        @endif
-                                        
-                                        @if(isset($job['experience_level']))
-                                        <span class="flex items-center">
-                                            ⭐ {{ ucfirst($job['experience_level']) }}
-                                        </span>
-                                        @endif
-                                    </div>
-
-                                    @if(isset($job['requirements']) && !empty($job['requirements']))
-                                    <div class="flex flex-wrap gap-1 mt-2">
-                                        @php
-                                            $requirements = is_string($job['requirements']) ? 
-                                                explode(',', $job['requirements']) : 
-                                                (is_array($job['requirements']) ? $job['requirements'] : []);
-                                        @endphp
-                                        @foreach(array_slice($requirements, 0, 3) as $req)
-                                            <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
-                                                {{ trim($req) }}
-                                            </span>
-                                        @endforeach
-                                        @if(count($requirements) > 3)
-                                            <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
-                                                +{{ count($requirements) - 3 }} daha
-                                            </span>
-                                        @endif
-                                    </div>
-                                    @endif
-                                </div>
-
-                                <div class="text-right ml-4">
-                                    @if(isset($job['salary_min']) && isset($job['salary_max']) && $job['salary_min'] && $job['salary_max'])
-                                        <div class="text-lg font-semibold text-green-600 mb-1">
-                                            {{ number_format($job['salary_min']) }} - {{ number_format($job['salary_max']) }} ₺
+                                    <h1 class="text-3xl font-bold text-gray-800 mb-2">{{ $job['title'] }}</h1>
+                                    @if($company)
+                                        <div class="flex items-center mb-3">
+                                            @if($company['logo'])
+                                                <img src="{{ $company['logo'] }}" alt="{{ $company['name'] }}" 
+                                                     class="w-12 h-12 rounded-lg mr-3">
+                                            @else
+                                                <div class="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
+                                                    <span class="text-white font-bold text-lg">
+                                                        {{ substr($company['name'], 0, 1) }}
+                                                    </span>
+                                                </div>
+                                            @endif
+                                            <div>
+                                                <h3 class="text-xl font-semibold text-gray-800">{{ $company['name'] }}</h3>
+                                                <p class="text-gray-600">{{ $company['industry'] ?? '' }}</p>
+                                            </div>
                                         </div>
-                                    @elseif(isset($job['salary_min']) && $job['salary_min'])
-                                        <div class="text-lg font-semibold text-green-600 mb-1">
-                                            {{ number_format($job['salary_min']) }}+ ₺
-                                        </div>
-                                    @endif
-                                    
-                                    <div class="text-sm text-gray-500">
-                                        {{ isset($job['created_at']) ? \Carbon\Carbon::parse($job['created_at'])->diffForHumans() : 'Tarih belirtilmemiş' }}
-                                    </div>
-                                </div>
-                            </div>
-
-                            @if(isset($job['description']))
-                            <p class="text-gray-700 mb-4 line-clamp-3">
-                                {{ Str::limit($job['description'], 250) }}
-                            </p>
-                            @endif
-
-                            <div class="flex justify-between items-center pt-4 border-t border-gray-100">
-                                <div class="flex items-center space-x-4 text-sm text-gray-500">
-                                    <span class="flex items-center">
-                                        👥 {{ $job['application_count'] ?? 0 }} başvuru
-                                    </span>
-                                    <span class="flex items-center">
-                                        👁️ {{ $job['view_count'] ?? 0 }} görüntülenme
-                                    </span>
-                                    @if(isset($job['is_remote']) && $job['is_remote'])
-                                    <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
-                                        🏠 Remote
-                                    </span>
                                     @endif
                                 </div>
                                 
-                                <div class="flex space-x-2">
-                                    <a href="/jobs/{{ $job['id'] }}" 
-                                       class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-200 text-sm font-medium">
-                                        Detaylar
-                                    </a>
-                                    @if(isset($userInfo) && $userInfo['is_authenticated'])
-                                    <button class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition duration-200 text-sm font-medium">
-                                        Başvur
+                                <!-- Action Buttons -->
+                                <div class="flex space-x-2 ml-4">
+                                    <button wire:click="saveJob" 
+                                            class="p-2 border border-gray-300 rounded-lg hover:bg-gray-50" 
+                                            title="Kaydet">
+                                        ❤️
                                     </button>
-                                    @else
-                                    <a href="/login" 
-                                       class="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition duration-200 text-sm font-medium">
-                                        Başvur
-                                    </a>
-                                    @endif
+                                    <button wire:click="shareJob" 
+                                            class="p-2 border border-gray-300 rounded-lg hover:bg-gray-50" 
+                                            title="Paylaş">
+                                        📤
+                                    </button>
+                                    <button wire:click="reportJob" 
+                                            class="p-2 border border-gray-300 rounded-lg hover:bg-gray-50" 
+                                            title="Rapor Et">
+                                        🚨
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Job Meta Info -->
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                                    <div class="text-2xl mb-1">📍</div>
+                                    <div class="text-sm text-gray-600">Lokasyon</div>
+                                    <div class="font-semibold">{{ $job['city'] }}, {{ $job['country'] }}</div>
+                                </div>
+                                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                                    <div class="text-2xl mb-1">💼</div>
+                                    <div class="text-sm text-gray-600">Çalışma Şekli</div>
+                                    <div class="font-semibold">{{ ucfirst($job['work_type']) }}</div>
+                                </div>
+                                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                                    <div class="text-2xl mb-1">⭐</div>
+                                    <div class="text-sm text-gray-600">Deneyim</div>
+                                    <div class="font-semibold">{{ ucfirst($job['experience_level']) }}</div>
+                                </div>
+                                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                                    <div class="text-2xl mb-1">💰</div>
+                                    <div class="text-sm text-gray-600">Maaş</div>
+                                    <div class="font-semibold text-green-600">{{ $this->getFormattedSalary() }}</div>
+                                </div>
+                            </div>
+
+                            <!-- Apply Button -->
+                            <div class="text-center">
+                                @if($hasUserApplied)
+                                    <!-- Zaten başvurmuş -->
+                                    <button disabled 
+                                            class="bg-green-500 text-white px-8 py-3 rounded-lg cursor-not-allowed text-lg font-semibold opacity-75">
+                                        ✅ Başvuru Tamamlandı
+                                    </button>
+                                    <div class="mt-2 text-sm text-green-600 font-medium">
+                                        Bu iş ilanına başvurunuz mevcut
+                                    </div>
+                                @elseif(!session('user_id'))
+                                    <!-- Giriş yapmamış -->
+                                    <button wire:click="apply" 
+                                            class="bg-gray-500 text-white px-8 py-3 rounded-lg hover:bg-gray-600 transition duration-200 text-lg font-semibold">
+                                        🔐 Giriş Yaparak Başvur
+                                    </button>
+                                @else
+                                    <!-- Normal başvur butonu -->
+                                    <button wire:click="apply" 
+                                            class="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition duration-200 text-lg font-semibold">
+                                        🚀 Hemen Başvur
+                                    </button>
+                                @endif
+                                
+                                <div class="mt-2 text-sm text-gray-500">
+                                    {{ $job['application_count'] ?? 0 }} kişi başvurdu • 
+                                    {{ $this->getTimeAgo() }}
                                 </div>
                             </div>
                         </div>
-                    @endforeach
-                </div>
 
-                <!-- Load More Button -->
-                @if(count($jobs) >= 10)
-                <div class="text-center mt-8">
-                    <button class="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition duration-200 font-medium">
-                        Daha Fazla İlan Göster
-                    </button>
-                </div>
-                @endif
+                        <!-- Job Description -->
+                        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-4">İş Tanımı</h2>
+                            <div class="prose max-w-none">
+                                <p class="text-gray-700 leading-relaxed whitespace-pre-line">{{ $job['description'] }}</p>
+                            </div>
+                        </div>
 
-            @else
-                <div class="text-center py-12">
-                    <div class="text-gray-400 text-6xl mb-4">📋</div>
-                    <h3 class="text-xl font-semibold text-gray-600 mb-2">
-                        @if(!empty($searchPosition) || !empty($searchCity))
-                            Arama kriterlerinize uygun iş ilanı bulunamadı
-                        @else
-                            Henüz iş ilanı bulunamadı
+                        <!-- Requirements -->
+                        @if($job['requirements'])
+                        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-4">Aranan Özellikler</h2>
+                            <div class="prose max-w-none">
+                                <p class="text-gray-700 leading-relaxed whitespace-pre-line">{{ $job['requirements'] }}</p>
+                            </div>
+                        </div>
                         @endif
-                    </h3>
-                    <p class="text-gray-500 mb-4">
-                        @if(!empty($searchPosition) || !empty($searchCity))
-                            Farklı arama kriterleri deneyebilir veya filtreleri gevşetebilirsiniz.
-                        @else
-                            İş ilanları yükleniyor veya henüz ilan eklenmemiş.
+
+                        <!-- Company Info -->
+                        @if($company)
+                        <div class="bg-white rounded-lg shadow-md p-6">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-4">Şirket Hakkında</h2>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <h3 class="text-lg font-semibold mb-2">{{ $company['name'] }}</h3>
+                                    <p class="text-gray-700 mb-4">{{ $company['description'] ?? '' }}</p>
+                                    
+                                    @if($company['website'])
+                                    <a href="{{ $company['website'] }}" target="_blank" 
+                                       class="text-blue-600 hover:text-blue-800 font-medium">
+                                        🌐 Şirket Web Sitesi
+                                    </a>
+                                    @endif
+                                </div>
+                                <div class="space-y-3">
+                                    @if($company['employee_count'])
+                                    <div class="flex items-center">
+                                        <span class="text-gray-600 w-24">Çalışan:</span>
+                                        <span class="font-medium">{{ $company['employee_count'] }}</span>
+                                    </div>
+                                    @endif
+                                    @if($company['industry'])
+                                    <div class="flex items-center">
+                                        <span class="text-gray-600 w-24">Sektör:</span>
+                                        <span class="font-medium">{{ $company['industry'] }}</span>
+                                    </div>
+                                    @endif
+                                    <div class="flex items-center">
+                                        <span class="text-gray-600 w-24">Lokasyon:</span>
+                                        <span class="font-medium">{{ $company['city'] }}, {{ $company['country'] }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         @endif
-                    </p>
-                    @if(!empty($searchPosition) || !empty($searchCity))
-                    <button 
-                        wire:click="clearSearch"
-                        class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-200"
-                    >
-                        Tüm İlanları Göster
-                    </button>
-                    @endif
+                    </div>
+
+                    <!-- Sidebar (Right 1/3) -->
+                    <div class="lg:col-span-1">
+                        <!-- Quick Apply Card -->
+                        <div class="bg-white rounded-lg shadow-md p-6 mb-6 sticky top-4">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">Hızlı Başvuru</h3>
+                            <button wire:click="apply" 
+                                    class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition duration-200 font-semibold mb-4">
+                                🚀 Başvur
+                            </button>
+                            
+                            <div class="border-t pt-4">
+                                <div class="flex justify-between text-sm text-gray-600 mb-2">
+                                    <span>Başvuru Sayısı:</span>
+                                    <span class="font-medium">{{ $job['application_count'] ?? 0 }}</span>
+                                </div>
+                                <div class="flex justify-between text-sm text-gray-600">
+                                    <span>Yayın Tarihi:</span>
+                                    <span class="font-medium">{{ $this->getTimeAgo() }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Related Jobs -->
+                        @if(count($relatedJobs) > 0)
+                        <div class="bg-white rounded-lg shadow-md p-6">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">İlgili İş İlanları</h3>
+                            <div class="space-y-4">
+                                @foreach($relatedJobs as $relatedJob)
+                                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition cursor-pointer"
+                                     wire:click="goToJob({{ $relatedJob['id'] }})">
+                                    <h4 class="font-semibold text-gray-800 mb-1">{{ $relatedJob['title'] }}</h4>
+                                    @if(isset($relatedJob['company']))
+                                    <p class="text-sm text-gray-600 mb-2">{{ $relatedJob['company']['name'] }}</p>
+                                    @endif
+                                    <div class="flex justify-between text-sm text-gray-500">
+                                        <span>📍 {{ $relatedJob['city'] }}</span>
+                                        <span>💼 {{ ucfirst($relatedJob['work_type']) }}</span>
+                                    </div>
+                                </div>
+                                @endforeach
+                            </div>
+                        </div>
+                        @endif
+                    </div>
                 </div>
-            @endif
+            </div>
         </div>
-    </section>
-</div>
 
-@push('styles')
-<style>
-    .line-clamp-3 {
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-</style>
-@endpush
+        <!-- Basitleştirilmiş Application Modal - Sadece Cover Letter -->
+        @if($showApplicationModal)
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
+             wire:click="closeApplicationModal">
+            <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4" wire:click.stop>
+                <h3 class="text-xl font-bold text-gray-800 mb-4">🚀 Hızlı Başvuru</h3>
+                
+                <form wire:submit.prevent="submitApplication">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Kapak Mektubu *
+                            </label>
+                            <textarea wire:model="applicationData.cover_letter" rows="6"
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                      placeholder="Neden bu pozisyon için uygun olduğunuzu kısaca açıklayın... (En az 50 karakter)"></textarea>
+                            @error('applicationData.cover_letter') 
+                                <span class="text-red-500 text-sm">{{ $message }}</span> 
+                            @enderror
+                        </div>
+                        
+                        <div class="text-sm text-gray-500">
+                            💡 İpucu: Deneyimlerinizi ve bu pozisyon için neden uygun olduğunuzu belirtin.
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" wire:click="closeApplicationModal" 
+                                class="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+                            İptal
+                        </button>
+                        <button type="submit" 
+                                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
+                            <span wire:loading.remove>Başvuruyu Gönder</span>
+                            <span wire:loading>Gönderiliyor...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        @endif
+    @endif
+
+    <!-- Flash Messages -->
+    @if (session()->has('success'))
+        <div class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+            {{ session('success') }}
+        </div>
+    @endif
+
+    @if (session()->has('error'))
+        <div class="fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+            {{ session('error') }}
+        </div>
+    @endif
+
+    @if (session()->has('info'))
+        <div class="fixed top-4 right-4 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+            {{ session('info') }}
+        </div>
+    @endif
+
+    <script>
+        // Handle job sharing
+        window.addEventListener('job-shared', () => {
+            navigator.clipboard.writeText(window.location.href);
+            alert('İş ilanı bağlantısı kopyalandı!');
+        });
+
+        // Auto-hide flash messages
+        setTimeout(() => {
+            document.querySelectorAll('.fixed.top-4.right-4').forEach(el => el.remove());
+        }, 5000);
+    </script>
+</div>
